@@ -4,7 +4,9 @@ import os
 import sys
 import subprocess
 import mimetypes
+import argparse
 from pathlib import Path
+import shutil
 
 # Try to import optional dependencies with fallbacks
 try:
@@ -661,70 +663,77 @@ class ShortcutCreatorWindow(QMainWindow):
         self.statusBar.showMessage("Form reset. Please select a file or folder.")
 
 
-def main():
-    # If there's a direct file argument, create a shortcut for it immediately
-    if len(sys.argv) > 1 and os.path.exists(sys.argv[1]):
+def create_shortcut_from_args(args):
+    """Create a shortcut using command line arguments."""
+    detector = FileTypeDetector()
+    creator = DesktopShortcutCreator()
+    
+    # Get the suggested configuration
+    config = detector.get_suggested_config(args.file)
+    
+    # Override with command line arguments
+    if args.name:
+        config['name'] = args.name
+    if args.icon:
+        config['icon'] = args.icon
+    if args.terminal is not None:
+        config['terminal'] = args.terminal
+    if args.categories:
+        config['categories'] = args.categories.split(';')
+    if args.description:
+        config['description'] = args.description
+    
+    # Set working directory
+    working_dir = args.working_dir if args.working_dir else os.path.dirname(args.file)
+    
+    # Create the shortcut
+    success, result = creator.create_shortcut(
+        name=config['name'],
+        executable=f"bash -c \"cd '{working_dir}' && /usr/bin/python3 '{args.file}'\"",
+        icon_path=config['icon'],
+        description=config['description'],
+        terminal=config['terminal'],
+        categories=config['categories'],
+        working_dir=working_dir
+    )
+    
+    if success and args.autostart:
+        # Create autostart entry
+        autostart_dir = os.path.expanduser("~/.config/autostart")
+        os.makedirs(autostart_dir, exist_ok=True)
+        shortcut_name = os.path.basename(result)
+        autostart_path = os.path.join(autostart_dir, shortcut_name)
         try:
-            file_path = os.path.abspath(sys.argv[1])
-            print(f"Creating shortcut for: {file_path}")
-            
-            creator = DesktopShortcutCreator()
-            detector = FileTypeDetector()
-            
-            # Get suggested configuration
-            config = detector.get_suggested_config(file_path)
-            
-            # Create the shortcut
-            success, result = creator.create_shortcut(
-                name=config['name'],
-                executable=config.get('executable', f"'{file_path}'"),
-                icon_path=config['icon'],
-                description=config['description'],
-                terminal=config['terminal'],
-                categories=config['categories'],
-                use_symlink=False
-            )
-            
-            if success:
-                print(f"Shortcut created successfully: {result}")
-                return 0
-            else:
-                print(f"Error creating shortcut: {result}")
-                return 1
+            shutil.copy2(result, autostart_path)
+            print(f"Added shortcut to autostart: {autostart_path}")
         except Exception as e:
-            print(f"Error: {e}")
-            return 1
+            print(f"Failed to add to autostart: {e}")
     
-    # Check for CLI mode
-    elif len(sys.argv) > 1 and sys.argv[1] == '--cli':
-        # CLI mode
-        try:
-            from shortcut_creator import main as cli_main
-            cli_main()
-        except ImportError:
-            print("CLI version not available. Using GUI version.")
-        
-        return
-    
-    try:
-        # Create the application
+    print(f"Created shortcut for {args.file}")
+    if args.autostart:
+        print("Added to autostart applications")
+
+def main():
+    # Check if running in GUI mode (no arguments provided)
+    if len(sys.argv) == 1:
         app = QApplication(sys.argv)
-        
-        # Set application style
-        app.setStyle('Fusion')
-        
-        # Create and show the main window
         window = ShortcutCreatorWindow()
         window.show()
-        
-        # Run the application event loop
         sys.exit(app.exec())
-    except Exception as e:
-        print(f"Error starting the application: {e}")
-        print("This might be due to missing dependencies. Try running:")
-        print("sudo apt-get install -y python3-pyqt6 python3-magic python3-pil python3-pil.imagetk libmagic1")
-        sys.exit(1)
-
+    
+    # Command line mode
+    parser = argparse.ArgumentParser(description='Create desktop shortcuts')
+    parser.add_argument('--file', required=True, help='Path to the file to create a shortcut for')
+    parser.add_argument('--name', help='Name of the shortcut')
+    parser.add_argument('--icon', help='Path to the icon file')
+    parser.add_argument('--terminal', action='store_true', help='Run in terminal')
+    parser.add_argument('--categories', help='Categories (semicolon-separated)')
+    parser.add_argument('--description', help='Shortcut description')
+    parser.add_argument('--working-dir', help='Working directory for the shortcut')
+    parser.add_argument('--autostart', action='store_true', help='Add to autostart applications')
+    
+    args = parser.parse_args()
+    create_shortcut_from_args(args)
 
 if __name__ == "__main__":
     main() 
