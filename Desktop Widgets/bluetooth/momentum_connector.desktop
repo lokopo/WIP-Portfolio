@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Momentum 4 Connector
+Comment=Bluetooth connector for Momentum 4 headphones
+Exec=python3 /home/luke-thomas/Desktop/Projects/Personal/Desktop\ Widgets/bluetooth/bluetooth_gui.py
+Icon=bluetooth
+Terminal=false
+Categories=Utility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true 

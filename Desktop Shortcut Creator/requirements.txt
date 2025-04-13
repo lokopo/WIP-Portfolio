@@ -1,0 +1,5 @@
+# Dependencies for the Desktop Shortcut Creator (PyQt version)
+python-magic>=0.4.24  # For file type detection
+python-magic-bin>=0.4.14  # Alternative for python-magic that includes binaries
+Pillow>=9.0.0  # For image handling and icons
+PyQt6>=6.5.0  # Modern Qt framework for Python

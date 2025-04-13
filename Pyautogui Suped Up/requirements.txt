@@ -1,0 +1,6 @@
+pyautogui==0.9.54
+customtkinter==5.2.2
+pillow==10.2.0
+mouse==0.7.1
+keyboard==0.13.5
+python-xlib==0.33 

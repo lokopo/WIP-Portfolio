@@ -1,0 +1,77 @@
+Windows List Export
+==================
+Export Date: 2025-03-25 18:02:38
+==================
+
+Name: No Name
+Class: firefox
+Type: Normal Window
+Position: -20,1060 1320x750
+ID: 33555321
+--------------------------------------------------
+Name: No Name
+Class: firefox
+Type: Normal Window
+Position: -20,1770 1320x750
+ID: 33555439
+--------------------------------------------------
+Name: No Name
+Class: firefox
+Type: Normal Window
+Position: 1260,1770 1320x750
+ID: 33555077
+--------------------------------------------------
+Name: No Name
+Class: firefox
+Type: Normal Window
+Position: 1260,1060 1320x750
+ID: 33555203
+--------------------------------------------------
+Name: mutter guard window
+Class: Unknown Class
+Type: Normal Window
+Position: 0,0 2560x2520
+ID: 31457296
+--------------------------------------------------
+Name: Desktop
+Class: Nemo-desktop
+Type: Normal Window
+Position: 0,1080 2560x1420
+ID: 41943043
+--------------------------------------------------
+Name: Desktop
+Class: Nemo-desktop
+Type: Normal Window
+Position: 167,0 1920x1080
+ID: 41943051
+--------------------------------------------------
+Name: No Name
+Class: Cursor
+Type: Normal Window
+Position: 10,40 2560x1388
+ID: 35651588
+--------------------------------------------------
+Name: No Name
+Class: firefox
+Type: Normal Window
+Position: 167,0 1920x1080
+ID: 33554502
+--------------------------------------------------
+Name: Window Text Sender
+Class: Run Me
+Type: Normal Window
+Position: 10,40 1000x800
+ID: 71303176
+--------------------------------------------------
+Name: cinnamon
+Class: Cinnamon
+Type: Normal Window
+Position: -200,-200 1x1
+ID: 31457291
+--------------------------------------------------
+Name: Firefox
+Class: firefox
+Type: Normal Window
+Position: -99,-99 1x1
+ID: 33554656
+--------------------------------------------------

@@ -1,0 +1,478 @@
+#!/usr/bin/env python3
+import sys
+import time
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+                            QHBoxLayout, QLineEdit, QPushButton, QListWidget, 
+                            QLabel, QMessageBox, QListWidgetItem, QFileDialog,
+                            QComboBox, QTextEdit)
+from PySide6.QtCore import Qt
+from Xlib import X, display
+from Xlib.XK import string_to_keysym
+from datetime import datetime
+
+class WindowSelector(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Window Text Sender")
+        self.setGeometry(100, 100, 1200, 900)
+        
+        # Create central widget and layout
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+        
+        # Create search box
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Search Windows:")
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Type to filter windows...")
+        self.search_input.textChanged.connect(self.filter_windows)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.search_input)
+        layout.addLayout(search_layout)
+        
+        # Create window list
+        self.window_list = QListWidget()
+        self.window_list.setSelectionMode(QListWidget.MultiSelection)
+        layout.addWidget(QLabel("Select Windows:"))
+        layout.addWidget(self.window_list)
+        
+        # Create input field selector
+        input_layout = QHBoxLayout()
+        input_label = QLabel("Input Field Type:")
+        self.input_type = QComboBox()
+        self.input_type.addItems(["Address Bar", "Search Box", "Text Input", "Any Input"])
+        input_layout.addWidget(input_label)
+        input_layout.addWidget(self.input_type)
+        layout.addLayout(input_layout)
+        
+        # Create text input
+        self.text_input = QLineEdit()
+        self.text_input.setPlaceholderText("Enter text to send...")
+        layout.addWidget(self.text_input)
+        
+        # Create instructions text
+        instructions = QTextEdit()
+        instructions.setReadOnly(True)
+        instructions.setMaximumHeight(150)
+        instructions.setText("""
+To select a specific input field:
+
+1. Open Firefox Developer Tools (F12)
+2. Click the "Select Element" button (arrow icon) in the top-left of Developer Tools
+3. Click on the input field you want to target
+4. In Developer Tools, right-click the highlighted HTML element
+5. Select "Copy" -> "Copy outerHTML"
+6. Paste the HTML here:
+""")
+        layout.addWidget(instructions)
+        
+        # Create HTML input
+        self.html_input = QTextEdit()
+        self.html_input.setPlaceholderText("Paste the HTML element here...")
+        self.html_input.setMaximumHeight(100)
+        layout.addWidget(self.html_input)
+        
+        # Create buttons
+        button_layout = QHBoxLayout()
+        refresh_button = QPushButton("Refresh Window List")
+        refresh_button.clicked.connect(self.refresh_windows)
+        send_button = QPushButton("Send Text")
+        send_button.clicked.connect(self.send_text)
+        export_button = QPushButton("Export Windows List")
+        export_button.clicked.connect(self.export_windows)
+        button_layout.addWidget(refresh_button)
+        button_layout.addWidget(send_button)
+        button_layout.addWidget(export_button)
+        layout.addLayout(button_layout)
+        
+        # Initialize X display
+        self.display = display.Display()
+        self.windows_data = []  # Store window data for filtering
+        self.refresh_windows()
+    
+    def is_input_field(self, window):
+        try:
+            # Get window attributes
+            attrs = window.get_attributes()
+            
+            # Skip windows that are not mapped or are hidden
+            if attrs.map_state != X.IsViewable:
+                return False
+            
+            # Get window class
+            try:
+                wm_class = window.get_wm_class()
+                if wm_class:
+                    class_name = wm_class[1].lower()
+                    # Check for common input field classes
+                    if any(input_type in class_name for input_type in ['entry', 'text', 'input', 'edit']):
+                        return True
+            except:
+                pass
+            
+            # Get window name
+            try:
+                name = window.get_wm_name()
+                if name:
+                    name_lower = name.lower()
+                    # Check for common input field names
+                    if any(input_type in name_lower for input_type in ['address', 'search', 'url', 'input', 'text']):
+                        return True
+            except:
+                pass
+            
+            # Get geometry
+            try:
+                geometry = window.get_geometry()
+                # Input fields are usually rectangular and not too small
+                if 50 < geometry.width < 1000 and 20 < geometry.height < 50:
+                    return True
+            except:
+                pass
+            
+            return False
+        except:
+            return False
+    
+    def is_main_window(self, window):
+        try:
+            # Get window attributes
+            attrs = window.get_attributes()
+            
+            # Skip windows that are not mapped or are hidden
+            if attrs.map_state != X.IsViewable:
+                return False
+            
+            # Get window type
+            try:
+                window_type = window.get_wm_window_type()
+                if window_type:
+                    # Skip utility windows, toolbars, etc.
+                    if window_type in [X._NET_WM_WINDOW_TYPE_UTILITY, 
+                                     X._NET_WM_WINDOW_TYPE_TOOLBAR,
+                                     X._NET_WM_WINDOW_TYPE_MENU,
+                                     X._NET_WM_WINDOW_TYPE_DOCK]:
+                        return False
+            except:
+                pass
+            
+            # Get window class
+            try:
+                wm_class = window.get_wm_class()
+                if wm_class:
+                    # Skip known utility windows
+                    class_name = wm_class[1].lower()
+                    if any(util in class_name for util in ['toolbar', 'menu', 'dock', 'panel', 'notification']):
+                        return False
+            except:
+                pass
+            
+            # Get window name
+            try:
+                name = window.get_wm_name()
+                if name:
+                    # Skip known utility windows by name
+                    name_lower = name.lower()
+                    if any(util in name_lower for util in ['toolbar', 'menu', 'dock', 'panel', 'notification']):
+                        return False
+            except:
+                pass
+            
+            # Get geometry
+            try:
+                geometry = window.get_geometry()
+                # Skip very small windows (likely utility windows)
+                if geometry.width < 100 or geometry.height < 100:
+                    return False
+            except:
+                pass
+            
+            return True
+        except:
+            return False
+    
+    def get_window_info(self, window):
+        try:
+            if not self.is_main_window(window):
+                return None
+                
+            # Get window name
+            try:
+                name = window.get_wm_name()
+            except:
+                name = None
+                
+            # Get window class
+            try:
+                wm_class = window.get_wm_class()
+                class_name = wm_class[1] if wm_class else None
+            except:
+                class_name = None
+                
+            # Get window type
+            try:
+                window_type = window.get_wm_window_type()
+                type_name = str(window_type) if window_type else None
+            except:
+                type_name = None
+                
+            # Get geometry
+            try:
+                geometry = window.get_geometry()
+                geom_str = f"{geometry.x},{geometry.y} {geometry.width}x{geometry.height}"
+            except:
+                geom_str = "Unknown"
+            
+            # Skip windows with no name and no class
+            if not name and not class_name:
+                return None
+                
+            info = {
+                'name': name if name else "No Name",
+                'class': class_name if class_name else "Unknown Class",
+                'type': type_name if type_name else "Normal Window",
+                'geometry': geom_str,
+                'id': window.id,
+                'input_fields': []
+            }
+            
+            # Find input fields in this window
+            try:
+                tree = window.query_tree()
+                if tree:
+                    for child in tree.children:
+                        if self.is_input_field(child):
+                            try:
+                                field_name = child.get_wm_name() or "Unnamed Input"
+                                info['input_fields'].append({
+                                    'id': child.id,
+                                    'name': field_name
+                                })
+                            except:
+                                pass
+            except:
+                pass
+            
+            return info
+        except Exception as e:
+            print(f"Error getting window info: {str(e)}")
+            return None
+    
+    def refresh_windows(self):
+        self.window_list.clear()
+        self.windows_data = []
+        root = self.display.screen().root
+        
+        def add_window(window):
+            info = self.get_window_info(window)
+            if info:
+                self.windows_data.append(info)
+                item = QListWidgetItem()
+                window_text = f"Name: {info['name']}\n"
+                window_text += f"Class: {info['class']}\n"
+                window_text += f"Type: {info['type']}\n"
+                window_text += f"Position: {info['geometry']}\n"
+                window_text += f"ID: {info['id']}\n"
+                
+                if info['input_fields']:
+                    window_text += "\nInput Fields:\n"
+                    for field in info['input_fields']:
+                        window_text += f"- {field['name']} (ID: {field['id']})\n"
+                
+                item.setText(window_text)
+                item.setData(Qt.UserRole, info)  # Store full window info
+                self.window_list.addItem(item)
+        
+        def traverse_windows(window):
+            try:
+                # Get all child windows
+                tree = window.query_tree()
+                if tree:
+                    # Add current window
+                    add_window(window)
+                    
+                    # Traverse children
+                    for child in tree.children:
+                        traverse_windows(child)
+            except Exception as e:
+                print(f"Error traversing window {window.id}: {str(e)}")
+        
+        try:
+            traverse_windows(root)
+            if not self.windows_data:
+                QMessageBox.warning(self, "Warning", "No windows were found. Make sure you have some windows open.")
+            self.filter_windows()  # Apply current filter
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to refresh windows: {str(e)}")
+    
+    def filter_windows(self):
+        search_text = self.search_input.text().lower()
+        for i in range(self.window_list.count()):
+            item = self.window_list.item(i)
+            item_text = item.text().lower()
+            item.setHidden(search_text not in item_text)
+    
+    def export_windows(self):
+        # Generate default filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        default_filename = f"windows_list_{timestamp}.txt"
+        
+        # Get save location from user
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Windows List",
+            default_filename,
+            "Text Files (*.txt);;All Files (*.*)"
+        )
+        
+        if file_path:
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write("Windows List Export\n")
+                    f.write("==================\n")
+                    f.write(f"Export Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("==================\n\n")
+                    
+                    for info in self.windows_data:
+                        f.write(f"Name: {info['name']}\n")
+                        f.write(f"Class: {info['class']}\n")
+                        f.write(f"Type: {info['type']}\n")
+                        f.write(f"Position: {info['geometry']}\n")
+                        f.write(f"ID: {info['id']}\n")
+                        if info['input_fields']:
+                            f.write("\nInput Fields:\n")
+                            for field in info['input_fields']:
+                                f.write(f"- {field['name']} (ID: {field['id']})\n")
+                        f.write("-" * 50 + "\n")
+                
+                QMessageBox.information(self, "Success", "Windows list exported successfully!")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Failed to export windows list: {str(e)}")
+    
+    def extract_element_info(self, html):
+        """Extract useful information from the HTML element."""
+        try:
+            # Look for common input field attributes
+            info = {
+                'id': '',
+                'name': '',
+                'class': '',
+                'type': '',
+                'placeholder': ''
+            }
+            
+            # Extract ID
+            if 'id="' in html:
+                info['id'] = html.split('id="')[1].split('"')[0]
+            
+            # Extract name
+            if 'name="' in html:
+                info['name'] = html.split('name="')[1].split('"')[0]
+            
+            # Extract class
+            if 'class="' in html:
+                info['class'] = html.split('class="')[1].split('"')[0]
+            
+            # Extract type
+            if 'type="' in html:
+                info['type'] = html.split('type="')[1].split('"')[0]
+            
+            # Extract placeholder
+            if 'placeholder="' in html:
+                info['placeholder'] = html.split('placeholder="')[1].split('"')[0]
+            
+            return info
+        except:
+            return None
+    
+    def find_matching_element(self, window_info, element_info):
+        """Find the input field that matches the HTML element information."""
+        if not element_info:
+            return None
+            
+        for field in window_info['input_fields']:
+            field_name = field['name'].lower()
+            
+            # Check if any of the element info matches
+            if element_info['id'] and element_info['id'].lower() in field_name:
+                return field['id']
+            if element_info['name'] and element_info['name'].lower() in field_name:
+                return field['id']
+            if element_info['class'] and element_info['class'].lower() in field_name:
+                return field['id']
+            if element_info['placeholder'] and element_info['placeholder'].lower() in field_name:
+                return field['id']
+        
+        return None
+    
+    def send_text(self):
+        selected_items = self.window_list.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Warning", "Please select at least one window!")
+            return
+        
+        text = self.text_input.text()
+        if not text:
+            QMessageBox.warning(self, "Warning", "Please enter some text!")
+            return
+        
+        # Get HTML element info if provided
+        html = self.html_input.toPlainText()
+        element_info = self.extract_element_info(html) if html else None
+        
+        for item in selected_items:
+            window_info = item.data(Qt.UserRole)  # Get full window info
+            try:
+                # Try to find matching element if HTML was provided
+                target_window_id = window_info['id']
+                if element_info:
+                    matching_id = self.find_matching_element(window_info, element_info)
+                    if matching_id:
+                        target_window_id = matching_id
+                        print(f"Found matching element with ID: {matching_id}")
+                    else:
+                        print("No matching element found, using main window")
+                
+                window = self.display.create_resource_object('window', target_window_id)
+                window.map()
+                time.sleep(0.1)  # Small delay to ensure window is focused
+                
+                # Send text character by character
+                for char in text:
+                    try:
+                        keysym = string_to_keysym(char)
+                        if keysym:
+                            keycode = self.display.keysym_to_keycode(keysym)
+                            if keycode:
+                                # Create and send key press event
+                                press_event = self.display.create_resource_object('event', X.KeyPress,
+                                    detail=keycode,
+                                    state=0,
+                                    window=window,
+                                    time=X.CurrentTime
+                                )
+                                window.send_event(press_event)
+                                
+                                # Create and send key release event
+                                release_event = self.display.create_resource_object('event', X.KeyRelease,
+                                    detail=keycode,
+                                    state=0,
+                                    window=window,
+                                    time=X.CurrentTime
+                                )
+                                window.send_event(release_event)
+                                
+                                time.sleep(0.05)  # Small delay between characters
+                    except Exception as e:
+                        print(f"Error sending character '{char}': {str(e)}")
+                        continue
+                
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Failed to send text to window: {str(e)}")
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = WindowSelector()
+    window.show()
+    sys.exit(app.exec()) 

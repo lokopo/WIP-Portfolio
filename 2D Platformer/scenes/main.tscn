@@ -1,0 +1,62 @@
+[gd_scene load_steps=5 format=3 uid="uid://c8q5n2k3m4p6r"]
+
+[ext_resource type="PackedScene" uid="uid://b6x8v0j5y6n3q" path="res://scenes/player.tscn" id="1_player"]
+[ext_resource type="PackedScene" uid="uid://d4k8p2m3n5q6r" path="res://scenes/background.tscn" id="2_background"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
+size = Vector2(1280, 40)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]
+size = Vector2(200, 20)
+
+[node name="Main" type="Node2D"]
+
+[node name="Background" parent="." instance=ExtResource("2_background")]
+
+[node name="Player" parent="." instance=ExtResource("1_player")]
+position = Vector2(640, 360)
+
+[node name="Camera2D" type="Camera2D" parent="Player"]
+drag_left_margin = 0.1
+drag_top_margin = 0.1
+drag_right_margin = 0.1
+drag_bottom_margin = 0.1
+
+[node name="Ground" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Ground"]
+position = Vector2(0, 700)
+shape = SubResource("RectangleShape2D_ground")
+
+[node name="Sprite2D" type="Sprite2D" parent="Ground"]
+offset_left = -640.0
+offset_top = -20.0
+offset_right = 640.0
+offset_bottom = 20.0
+scale = Vector2(1, 1)
+
+[node name="Platform1" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Platform1"]
+position = Vector2(0, -100)
+shape = SubResource("RectangleShape2D_platform")
+
+[node name="Sprite2D" type="Sprite2D" parent="Platform1"]
+offset_left = -100.0
+offset_top = -10.0
+offset_right = 100.0
+offset_bottom = 10.0
+scale = Vector2(1, 1)
+
+[node name="Platform2" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Platform2"]
+position = Vector2(200, -200)
+shape = SubResource("RectangleShape2D_platform")
+
+[node name="Sprite2D" type="Sprite2D" parent="Platform2"]
+offset_left = -100.0
+offset_top = -10.0
+offset_right = 100.0
+offset_bottom = 10.0
+scale = Vector2(1, 1)

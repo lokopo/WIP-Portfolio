@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Pithos Song Logger
+Comment=Automatically logs and tracks songs playing on Pithos
+Exec=/usr/bin/python3 "/home/luke-thomas/Desktop/Projects/Personal/Pithos Songs List/pithos_logger_gui_modern.py"
+Terminal=false
+Icon=audio-headphones
+Categories=AudioVideo;Audio;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true 

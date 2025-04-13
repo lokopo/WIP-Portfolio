@@ -1,0 +1,8 @@
+#!/bin/bash
+# Linux Mint Settings Browser Launcher
+
+# Make sure we're in the right directory
+cd "$(dirname "$0")"
+
+# Run the application
+python3 mint_settings_browser.py 

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Mint Settings & Utilities Browser
+Comment=Searchable browser for all Linux Mint settings and utilities
+Exec=/bin/bash -c "/home/luke-thomas/Desktop/Projects/Personal/Index\\ of\\ Linux\\ Mint\\ Settings\\ menus/mint_settings_browser.py"
+Icon=preferences-system
+Terminal=false
+Type=Application
+Categories=Settings;DesktopSettings;X-XFCE-SettingsDialog;X-XFCE-PersonalSettings;
+StartupNotify=true
+Keywords=settings;preferences;configuration;control;center;system;linux;mint;utilities;tools; 

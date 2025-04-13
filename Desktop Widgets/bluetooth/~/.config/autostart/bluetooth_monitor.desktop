@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Bluetooth Headphone Monitor
+Comment=Automatically monitor and reconnect Bluetooth headphones
+Exec=/home/luke-thomas/Desktop/Projects/Personal/Desktop\ Widgets/bluetooth/start_bluetooth_monitor.sh
+Icon=bluetooth
+Terminal=false
+Categories=Utility;
+StartupNotify=false
+X-GNOME-Autostart-enabled=true 

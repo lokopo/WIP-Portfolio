@@ -1,0 +1,13 @@
+ea4bc82a6ad023ab7ee23ee620429895
+::res://::1742953343
+README.md::TextFile/TextFile::-1::1742951127::0::1::::<><><>0<>0<><>::
+::res://assets/::1742951106
+::res://assets/music/::1742951106
+::res://assets/sounds/::1742951106
+::res://assets/sprites/::1742951106
+::res://scenes/::1742952555
+background.tscn::PackedScene::9217414179751576623::1742952851::0::1::::<><><>0<>0<><>::
+main.tscn::PackedScene::7123949411477868947::1742952870::0::1::::<><><>0<>0<><>::uid://b6x8v0j5y6n3q::::res://scenes/player.tscn<>uid://d4k8p2m3n5q6r::::res://scenes/background.tscn
+player.tscn::PackedScene/PackedScene::4611798015632138484::1742952023::0::1::::<><><>0<>0<><>::res://scripts/player.gd
+::res://scripts/::1742951623
+player.gd::GDScript/GDScript::5443707154470294426::1742952283::0::1::::<>CharacterBody2D<><>0<>0<><>::

@@ -1,0 +1,4 @@
+# Python dependencies
+# Add specific package versions as needed 
+pathlib>=1.0.1
+python-dateutil>=2.8.2 

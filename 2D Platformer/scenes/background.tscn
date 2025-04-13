@@ -1,0 +1,46 @@
+[gd_scene load_steps=4 format=3 uid="uid://d4k8p2m3n5q6r"]
+
+[sub_resource type="Gradient" id="Gradient_1"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(0.4, 0.6, 0.9, 1, 0.2, 0.4, 0.7, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_1"]
+gradient = SubResource("Gradient_1")
+width = 1280
+height = 720
+
+[sub_resource type="Gradient" id="Gradient_2"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(0.8, 0.8, 0.9, 1, 0.6, 0.7, 0.8, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_2"]
+gradient = SubResource("Gradient_2")
+width = 1280
+height = 720
+
+[node name="Background" type="ParallaxBackground"]
+
+[node name="Sky" type="ParallaxLayer" parent="."]
+motion_scale = Vector2(0, 0)
+
+[node name="ColorRect" type="ColorRect" parent="Sky"]
+offset_left = -640.0
+offset_top = -360.0
+offset_right = 640.0
+offset_bottom = 360.0
+texture = SubResource("GradientTexture2D_1")
+
+[node name="Clouds" type="ParallaxLayer" parent="."]
+motion_scale = Vector2(0.1, 0)
+
+[node name="Cloud1" type="Sprite2D" parent="Clouds"]
+position = Vector2(-400, -200)
+scale = Vector2(2, 2)
+
+[node name="Cloud2" type="Sprite2D" parent="Clouds"]
+position = Vector2(0, -150)
+scale = Vector2(1.5, 1.5)
+
+[node name="Cloud3" type="Sprite2D" parent="Clouds"]
+position = Vector2(400, -250)
+scale = Vector2(2.5, 2.5) 

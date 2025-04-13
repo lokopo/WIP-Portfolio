@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Pithos Song Logger (Ultra Modern)
+Comment=Sleek Material Design GUI for Pithos song logging
+Exec=/home/luke-thomas/Desktop/Projects/Personal/Pithos\ Songs\ List/pithos_logger_gui_modern.py
+Icon=multimedia-audio-player
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;
+StartupNotify=true 

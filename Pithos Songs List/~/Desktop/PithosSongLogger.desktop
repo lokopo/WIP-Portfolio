@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Pithos Song Logger
+Comment=Track and record your Pithos listening history
+Exec=/usr/bin/python3 "/home/luke-thomas/Desktop/Projects/Personal/Pithos Songs List/pithos_logger_gui_modern.py"
+Icon=audio-headphones
+Terminal=false
+Categories=AudioVideo;Audio;
+StartupNotify=true 
