@@ -2,14 +2,52 @@ import pygame
 import random
 import sys
 import os
+import platform
 
-# Initialize Pygame
-pygame.init()
+# Initialize Pygame with error handling
+try:
+    pygame.init()
+    pygame.mixer.init()
+except pygame.error as e:
+    print(f"Pygame initialization error: {e}")
+    pygame.init()
+
+# Detect if running on Android/Pydroid
+def is_android():
+    """Detect if running on Android (Pydroid)"""
+    try:
+        return ('ANDROID_DATA' in os.environ or 
+                'ANDROID_ROOT' in os.environ or
+                platform.system() == 'Linux' and 'pydroid' in sys.executable.lower())
+    except:
+        return False
+
+# Get optimal screen size
+def get_screen_size():
+    """Get the best screen size for the device"""
+    try:
+        display_info = pygame.display.Info()
+        screen_width = display_info.current_w
+        screen_height = display_info.current_h
+        
+        if is_android():
+            # Use fullscreen on Android but with safe margins
+            if screen_width > 0 and screen_height > 0:
+                return min(screen_width, 1080), min(screen_height, 1920)
+            else:
+                return 480, 800  # fallback
+        else:
+            # Desktop/other platforms
+            if screen_width > 0 and screen_height > 0:
+                return min(screen_width - 100, 480), min(screen_height - 100, 800)
+            else:
+                return 480, 800  # fallback
+    except:
+        return 480, 800  # fallback
 
 # Constants
-WINDOW_WIDTH = 480
-WINDOW_HEIGHT = 800
-GRID_SIZE = 20
+WINDOW_WIDTH, WINDOW_HEIGHT = get_screen_size()
+GRID_SIZE = max(15, min(25, WINDOW_WIDTH // 24))  # Adaptive grid size
 GRID_WIDTH = WINDOW_WIDTH // GRID_SIZE
 GRID_HEIGHT = (WINDOW_HEIGHT - 100) // GRID_SIZE  # Reserve space for UI
 
@@ -93,26 +131,47 @@ class TouchButton:
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.action = action
-        self.font = pygame.font.Font(None, 24)
+        try:
+            self.font = pygame.font.Font(None, max(16, int(24 * WINDOW_WIDTH / 480)))
+        except:
+            self.font = pygame.font.Font(None, 24)
         
     def draw(self, screen):
         pygame.draw.rect(screen, GRAY, self.rect)
         pygame.draw.rect(screen, WHITE, self.rect, 2)
         
-        text_surface = self.font.render(self.text, True, WHITE)
-        text_rect = text_surface.get_rect(center=self.rect.center)
-        screen.blit(text_surface, text_rect)
+        try:
+            text_surface = self.font.render(self.text, True, WHITE)
+            text_rect = text_surface.get_rect(center=self.rect.center)
+            screen.blit(text_surface, text_rect)
+        except:
+            pass
         
     def is_clicked(self, pos):
         return self.rect.collidepoint(pos)
 
 class Game:
     def __init__(self):
-        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-        pygame.display.set_caption("Snake Classic - Mobile")
+        # Initialize display with error handling
+        try:
+            if is_android():
+                self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.FULLSCREEN)
+            else:
+                self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+            pygame.display.set_caption("Snake Classic - Mobile")
+        except pygame.error as e:
+            print(f"Display initialization error: {e}")
+            self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+            
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 36)
-        self.small_font = pygame.font.Font(None, 24)
+        
+        # Safe font loading
+        try:
+            self.font = pygame.font.Font(None, max(24, int(36 * WINDOW_WIDTH / 480)))
+            self.small_font = pygame.font.Font(None, max(16, int(24 * WINDOW_WIDTH / 480)))
+        except:
+            self.font = pygame.font.Font(None, 36)
+            self.small_font = pygame.font.Font(None, 24)
         
         # Game state
         self.snake = Snake()
@@ -123,11 +182,11 @@ class Game:
         
         # Touch controls
         self.touch_start = None
-        self.min_swipe_distance = 50
+        self.min_swipe_distance = max(30, int(50 * WINDOW_WIDTH / 480))
         
         # UI Buttons
-        button_width = 100
-        button_height = 40
+        button_width = max(80, int(100 * WINDOW_WIDTH / 480))
+        button_height = max(30, int(40 * WINDOW_HEIGHT / 800))
         button_y = WINDOW_HEIGHT - 80
         
         self.buttons = [
@@ -248,17 +307,26 @@ class Game:
         
     def draw_ui(self):
         # Score
-        score_text = self.font.render(f"Score: {self.score}", True, WHITE)
-        self.screen.blit(score_text, (10, 10))
+        try:
+            score_text = self.font.render(f"Score: {self.score}", True, WHITE)
+            self.screen.blit(score_text, (10, 10))
+        except:
+            pass
         
         # Length
-        length_text = self.font.render(f"Length: {len(self.snake.positions)}", True, WHITE)
-        self.screen.blit(length_text, (10, 50))
+        try:
+            length_text = self.font.render(f"Length: {len(self.snake.positions)}", True, WHITE)
+            self.screen.blit(length_text, (10, 50))
+        except:
+            pass
         
         # Instructions
         if self.score == 0:
-            instruction_text = self.small_font.render("Swipe to move, tap buttons below", True, WHITE)
-            self.screen.blit(instruction_text, (10, 70))
+            try:
+                instruction_text = self.small_font.render("Swipe to move, tap buttons below", True, WHITE)
+                self.screen.blit(instruction_text, (10, 70))
+            except:
+                pass
         
         # Buttons
         for button in self.buttons:
@@ -266,40 +334,58 @@ class Game:
             
     def draw_game_over(self):
         # Overlay
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-        overlay.set_alpha(128)
-        overlay.fill(BLACK)
-        self.screen.blit(overlay, (0, 0))
+        try:
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            overlay.set_alpha(128)
+            overlay.fill(BLACK)
+            self.screen.blit(overlay, (0, 0))
+        except:
+            pass
         
         # Game over text
-        game_over_text = self.font.render("GAME OVER", True, WHITE)
-        text_rect = game_over_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 50))
-        self.screen.blit(game_over_text, text_rect)
+        try:
+            game_over_text = self.font.render("GAME OVER", True, WHITE)
+            text_rect = game_over_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 50))
+            self.screen.blit(game_over_text, text_rect)
+        except:
+            pass
         
         # Final score
-        final_score_text = self.font.render(f"Final Score: {self.score}", True, WHITE)
-        score_rect = final_score_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
-        self.screen.blit(final_score_text, score_rect)
+        try:
+            final_score_text = self.font.render(f"Final Score: {self.score}", True, WHITE)
+            score_rect = final_score_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
+            self.screen.blit(final_score_text, score_rect)
+        except:
+            pass
         
         # Restart button
         self.restart_button.draw(self.screen)
         
     def draw_pause(self):
         # Overlay
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-        overlay.set_alpha(128)
-        overlay.fill(BLACK)
-        self.screen.blit(overlay, (0, 0))
+        try:
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            overlay.set_alpha(128)
+            overlay.fill(BLACK)
+            self.screen.blit(overlay, (0, 0))
+        except:
+            pass
         
         # Pause text
-        pause_text = self.font.render("PAUSED", True, WHITE)
-        text_rect = pause_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
-        self.screen.blit(pause_text, text_rect)
+        try:
+            pause_text = self.font.render("PAUSED", True, WHITE)
+            text_rect = pause_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
+            self.screen.blit(pause_text, text_rect)
+        except:
+            pass
         
         # Resume instruction
-        resume_text = self.small_font.render("Tap PAUSE to resume", True, WHITE)
-        resume_rect = resume_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 40))
-        self.screen.blit(resume_text, resume_rect)
+        try:
+            resume_text = self.small_font.render("Tap PAUSE to resume", True, WHITE)
+            resume_rect = resume_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 40))
+            self.screen.blit(resume_text, resume_rect)
+        except:
+            pass
         
     def restart_game(self):
         self.snake = Snake()
@@ -314,11 +400,18 @@ class Game:
             running = self.handle_events()
             self.update()
             self.draw()
-            self.clock.tick(8)  # Slower speed for mobile
+            # Adaptive game speed based on screen size
+            fps = max(6, min(10, int(8 * WINDOW_WIDTH / 480)))
+            self.clock.tick(fps)
             
         pygame.quit()
         sys.exit()
 
 if __name__ == "__main__":
-    game = Game()
-    game.run()
+    try:
+        game = Game()
+        game.run()
+    except Exception as e:
+        print(f"Error starting game: {e}")
+        pygame.quit()
+        sys.exit(1)

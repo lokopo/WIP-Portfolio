@@ -2,13 +2,54 @@ import pygame
 import sys
 import os
 import subprocess
+import platform
 
-# Initialize Pygame
-pygame.init()
+# Initialize Pygame with error handling
+try:
+    pygame.init()
+    pygame.mixer.init()
+except pygame.error as e:
+    print(f"Pygame initialization error: {e}")
+    pygame.init()
+
+# Detect if running on Android/Pydroid
+def is_android():
+    """Detect if running on Android (Pydroid)"""
+    try:
+        # Check for Android-specific environment variables
+        return ('ANDROID_DATA' in os.environ or 
+                'ANDROID_ROOT' in os.environ or
+                platform.system() == 'Linux' and 'pydroid' in sys.executable.lower())
+    except:
+        return False
+
+# Get optimal screen size
+def get_screen_size():
+    """Get the best screen size for the device"""
+    try:
+        # Try to get display info
+        display_info = pygame.display.Info()
+        screen_width = display_info.current_w
+        screen_height = display_info.current_h
+        
+        # Android/Pydroid adjustments
+        if is_android():
+            # Use fullscreen on Android but with safe margins
+            if screen_width > 0 and screen_height > 0:
+                return min(screen_width, 1080), min(screen_height, 1920)
+            else:
+                return 480, 800  # fallback
+        else:
+            # Desktop/other platforms
+            if screen_width > 0 and screen_height > 0:
+                return min(screen_width - 100, 480), min(screen_height - 100, 800)
+            else:
+                return 480, 800  # fallback
+    except:
+        return 480, 800  # fallback
 
 # Constants
-WINDOW_WIDTH = 480
-WINDOW_HEIGHT = 800
+WINDOW_WIDTH, WINDOW_HEIGHT = get_screen_size()
 FPS = 60
 
 # Colors
@@ -79,9 +120,17 @@ class GameButton:
     def __init__(self, x, y, width, height, game_info):
         self.rect = pygame.Rect(x, y, width, height)
         self.game_info = game_info
-        self.font = pygame.font.Font(None, 24)
-        self.title_font = pygame.font.Font(None, 28)
-        self.icon_font = pygame.font.Font(None, 48)
+        
+        # Safe font loading
+        try:
+            self.font = pygame.font.Font(None, max(16, int(24 * WINDOW_WIDTH / 480)))
+            self.title_font = pygame.font.Font(None, max(20, int(28 * WINDOW_WIDTH / 480)))
+            self.icon_font = pygame.font.Font(None, max(32, int(48 * WINDOW_WIDTH / 480)))
+        except:
+            self.font = pygame.font.Font(None, 24)
+            self.title_font = pygame.font.Font(None, 28)
+            self.icon_font = pygame.font.Font(None, 48)
+            
         self.pressed = False
         self.hover = False
         
@@ -100,36 +149,48 @@ class GameButton:
         pygame.draw.rect(screen, WHITE, self.rect, 3)
         
         # Draw icon
-        icon_text = self.icon_font.render(self.game_info['icon'], True, WHITE)
-        icon_rect = icon_text.get_rect()
-        icon_rect.centerx = self.rect.centerx
-        icon_rect.y = self.rect.y + 10
-        screen.blit(icon_text, icon_rect)
+        try:
+            icon_text = self.icon_font.render(self.game_info['icon'], True, WHITE)
+            icon_rect = icon_text.get_rect()
+            icon_rect.centerx = self.rect.centerx
+            icon_rect.y = self.rect.y + 10
+            screen.blit(icon_text, icon_rect)
+        except:
+            pass  # Skip icon if it fails
         
         # Draw title
-        title_text = self.title_font.render(self.game_info['name'], True, WHITE)
-        title_rect = title_text.get_rect()
-        title_rect.centerx = self.rect.centerx
-        title_rect.y = self.rect.y + 70
-        screen.blit(title_text, title_rect)
+        try:
+            title_text = self.title_font.render(self.game_info['name'], True, WHITE)
+            title_rect = title_text.get_rect()
+            title_rect.centerx = self.rect.centerx
+            title_rect.y = self.rect.y + 70
+            screen.blit(title_text, title_rect)
+        except:
+            pass
         
         # Draw description
-        desc_lines = self.wrap_text(self.game_info['description'], self.rect.width - 20)
-        y_offset = 100
-        for line in desc_lines:
-            desc_text = self.font.render(line, True, WHITE)
-            desc_rect = desc_text.get_rect()
-            desc_rect.centerx = self.rect.centerx
-            desc_rect.y = self.rect.y + y_offset
-            screen.blit(desc_text, desc_rect)
-            y_offset += 25
+        try:
+            desc_lines = self.wrap_text(self.game_info['description'], self.rect.width - 20)
+            y_offset = 100
+            for line in desc_lines:
+                desc_text = self.font.render(line, True, WHITE)
+                desc_rect = desc_text.get_rect()
+                desc_rect.centerx = self.rect.centerx
+                desc_rect.y = self.rect.y + y_offset
+                screen.blit(desc_text, desc_rect)
+                y_offset += 25
+        except:
+            pass
             
         # Draw difficulty
-        diff_text = self.font.render(f"Difficulty: {self.game_info['difficulty']}", True, WHITE)
-        diff_rect = diff_text.get_rect()
-        diff_rect.centerx = self.rect.centerx
-        diff_rect.y = self.rect.bottom - 30
-        screen.blit(diff_text, diff_rect)
+        try:
+            diff_text = self.font.render(f"Difficulty: {self.game_info['difficulty']}", True, WHITE)
+            diff_rect = diff_text.get_rect()
+            diff_rect.centerx = self.rect.centerx
+            diff_rect.y = self.rect.bottom - 30
+            screen.blit(diff_text, diff_rect)
+        except:
+            pass
         
     def wrap_text(self, text, max_width):
         words = text.split(' ')
@@ -138,16 +199,19 @@ class GameButton:
         
         for word in words:
             test_line = ' '.join(current_line + [word])
-            test_surface = self.font.render(test_line, True, WHITE)
-            
-            if test_surface.get_width() <= max_width:
-                current_line.append(word)
-            else:
-                if current_line:
-                    lines.append(' '.join(current_line))
-                    current_line = [word]
+            try:
+                test_surface = self.font.render(test_line, True, WHITE)
+                
+                if test_surface.get_width() <= max_width:
+                    current_line.append(word)
                 else:
-                    lines.append(word)
+                    if current_line:
+                        lines.append(' '.join(current_line))
+                        current_line = [word]
+                    else:
+                        lines.append(word)
+            except:
+                current_line.append(word)
                     
         if current_line:
             lines.append(' '.join(current_line))
@@ -165,7 +229,10 @@ class TouchButton:
         self.rect = pygame.Rect(x, y, width, height)
         self.text = text
         self.action = action
-        self.font = pygame.font.Font(None, 24)
+        try:
+            self.font = pygame.font.Font(None, max(16, int(24 * WINDOW_WIDTH / 480)))
+        except:
+            self.font = pygame.font.Font(None, 24)
         self.pressed = False
         
     def draw(self, screen):
@@ -173,20 +240,41 @@ class TouchButton:
         pygame.draw.rect(screen, color, self.rect)
         pygame.draw.rect(screen, WHITE, self.rect, 2)
         
-        text_surface = self.font.render(self.text, True, WHITE)
-        text_rect = text_surface.get_rect(center=self.rect.center)
-        screen.blit(text_surface, text_rect)
+        try:
+            text_surface = self.font.render(self.text, True, WHITE)
+            text_rect = text_surface.get_rect(center=self.rect.center)
+            screen.blit(text_surface, text_rect)
+        except:
+            pass
         
     def is_clicked(self, pos):
         return self.rect.collidepoint(pos)
 
 class GameLauncher:
     def __init__(self):
-        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-        pygame.display.set_caption("Mobile Games Launcher")
+        # Initialize display with error handling
+        try:
+            if is_android():
+                # Android fullscreen mode
+                self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.FULLSCREEN)
+            else:
+                # Regular windowed mode
+                self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+            pygame.display.set_caption("Mobile Games Launcher")
+        except pygame.error as e:
+            print(f"Display initialization error: {e}")
+            # Fallback to basic mode
+            self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+            
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 36)
-        self.small_font = pygame.font.Font(None, 24)
+        
+        # Safe font loading
+        try:
+            self.font = pygame.font.Font(None, max(24, int(36 * WINDOW_WIDTH / 480)))
+            self.small_font = pygame.font.Font(None, max(16, int(24 * WINDOW_WIDTH / 480)))
+        except:
+            self.font = pygame.font.Font(None, 36)
+            self.small_font = pygame.font.Font(None, 24)
         
         # Scrolling
         self.scroll_y = 0
@@ -195,8 +283,8 @@ class GameLauncher:
         # Create game buttons
         self.game_buttons = []
         button_width = WINDOW_WIDTH - 40
-        button_height = 160
-        y_offset = 120
+        button_height = max(120, int(160 * WINDOW_HEIGHT / 800))
+        y_offset = max(80, int(120 * WINDOW_HEIGHT / 800))
         
         for i, game in enumerate(GAMES):
             x = 20
@@ -209,8 +297,8 @@ class GameLauncher:
         self.max_scroll = max(0, total_height - WINDOW_HEIGHT)
         
         # Control buttons
-        button_width = 100
-        button_height = 40
+        button_width = max(80, int(100 * WINDOW_WIDTH / 480))
+        button_height = max(30, int(40 * WINDOW_HEIGHT / 800))
         button_y = WINDOW_HEIGHT - 60
         
         self.control_buttons = [
@@ -300,9 +388,15 @@ class GameLauncher:
                 subprocess.run([sys.executable, game_path])
                 
                 # Restart the launcher after game closes
-                pygame.init()
-                self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-                pygame.display.set_caption("Mobile Games Launcher")
+                try:
+                    pygame.init()
+                    if is_android():
+                        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.FULLSCREEN)
+                    else:
+                        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+                    pygame.display.set_caption("Mobile Games Launcher")
+                except:
+                    self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
                 
             else:
                 print(f"Game file not found: {game_path}")
@@ -314,26 +408,42 @@ class GameLauncher:
         self.screen.fill(BLACK)
         
         # Draw title
-        title_text = self.font.render("🎮 Mobile Games", True, WHITE)
-        title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, 30))
-        self.screen.blit(title_text, title_rect)
+        try:
+            title_text = self.font.render("🎮 Mobile Games", True, WHITE)
+            title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, 30))
+            self.screen.blit(title_text, title_rect)
+        except:
+            try:
+                title_text = self.font.render("Mobile Games", True, WHITE)
+                title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, 30))
+                self.screen.blit(title_text, title_rect)
+            except:
+                pass
         
         # Draw subtitle
-        subtitle_text = self.small_font.render("Choose a game to play", True, GRAY)
-        subtitle_rect = subtitle_text.get_rect(center=(WINDOW_WIDTH // 2, 60))
-        self.screen.blit(subtitle_text, subtitle_rect)
+        try:
+            subtitle_text = self.small_font.render("Choose a game to play", True, GRAY)
+            subtitle_rect = subtitle_text.get_rect(center=(WINDOW_WIDTH // 2, 60))
+            self.screen.blit(subtitle_text, subtitle_rect)
+        except:
+            pass
         
         # Create a surface for scrollable content
-        scroll_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT * 2))
-        scroll_surface.fill(BLACK)
-        
-        # Draw game buttons on scroll surface
-        for button in self.game_buttons:
-            button.draw(scroll_surface)
+        try:
+            scroll_surface = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT * 2))
+            scroll_surface.fill(BLACK)
             
-        # Blit the visible portion of the scroll surface
-        visible_rect = pygame.Rect(0, self.scroll_y, WINDOW_WIDTH, WINDOW_HEIGHT - 80)
-        self.screen.blit(scroll_surface, (0, 0), visible_rect)
+            # Draw game buttons on scroll surface
+            for button in self.game_buttons:
+                button.draw(scroll_surface)
+                
+            # Blit the visible portion of the scroll surface
+            visible_rect = pygame.Rect(0, self.scroll_y, WINDOW_WIDTH, WINDOW_HEIGHT - 80)
+            self.screen.blit(scroll_surface, (0, 0), visible_rect)
+        except:
+            # Fallback: draw buttons directly
+            for button in self.game_buttons:
+                button.draw(self.screen)
         
         # Draw control buttons (always visible)
         for button in self.control_buttons:
@@ -341,11 +451,14 @@ class GameLauncher:
             
         # Draw scroll indicator
         if self.max_scroll > 0:
-            indicator_height = max(20, int((WINDOW_HEIGHT - 200) * (WINDOW_HEIGHT - 200) / (self.max_scroll + WINDOW_HEIGHT - 200)))
-            indicator_y = 100 + int((WINDOW_HEIGHT - 300) * self.scroll_y / self.max_scroll)
-            
-            pygame.draw.rect(self.screen, DARK_GRAY, (WINDOW_WIDTH - 10, 100, 8, WINDOW_HEIGHT - 200))
-            pygame.draw.rect(self.screen, WHITE, (WINDOW_WIDTH - 10, indicator_y, 8, indicator_height))
+            try:
+                indicator_height = max(20, int((WINDOW_HEIGHT - 200) * (WINDOW_HEIGHT - 200) / (self.max_scroll + WINDOW_HEIGHT - 200)))
+                indicator_y = 100 + int((WINDOW_HEIGHT - 300) * self.scroll_y / self.max_scroll)
+                
+                pygame.draw.rect(self.screen, DARK_GRAY, (WINDOW_WIDTH - 10, 100, 8, WINDOW_HEIGHT - 200))
+                pygame.draw.rect(self.screen, WHITE, (WINDOW_WIDTH - 10, indicator_y, 8, indicator_height))
+            except:
+                pass
             
         # Draw about dialog
         if self.show_about:
@@ -353,22 +466,28 @@ class GameLauncher:
             
         # Draw instructions at bottom
         if not self.show_about:
-            instruction_text = self.small_font.render("Swipe to scroll • Tap to select", True, GRAY)
-            instruction_rect = instruction_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 20))
-            self.screen.blit(instruction_text, instruction_rect)
+            try:
+                instruction_text = self.small_font.render("Swipe to scroll • Tap to select", True, GRAY)
+                instruction_rect = instruction_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 20))
+                self.screen.blit(instruction_text, instruction_rect)
+            except:
+                pass
             
         pygame.display.flip()
         
     def draw_about(self):
         # Overlay
-        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-        overlay.set_alpha(200)
-        overlay.fill(BLACK)
-        self.screen.blit(overlay, (0, 0))
+        try:
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            overlay.set_alpha(200)
+            overlay.fill(BLACK)
+            self.screen.blit(overlay, (0, 0))
+        except:
+            pass
         
         # About box
         box_width = WINDOW_WIDTH - 40
-        box_height = 400
+        box_height = min(400, WINDOW_HEIGHT - 100)
         box_x = 20
         box_y = (WINDOW_HEIGHT - box_height) // 2
         
@@ -377,7 +496,7 @@ class GameLauncher:
         
         # About text
         about_lines = [
-            "🎮 Mobile Games Collection",
+            "Mobile Games Collection",
             "",
             "Created for Android devices using Python & Pygame",
             "",
@@ -394,19 +513,22 @@ class GameLauncher:
         
         y_offset = box_y + 20
         for line in about_lines:
-            if line.startswith("🎮"):
-                text = self.font.render(line, True, WHITE)
-            else:
-                text = self.small_font.render(line, True, WHITE)
+            try:
+                if line.startswith("Mobile Games"):
+                    text = self.font.render(line, True, WHITE)
+                else:
+                    text = self.small_font.render(line, True, WHITE)
+                    
+                text_rect = text.get_rect()
+                text_rect.centerx = WINDOW_WIDTH // 2
+                text_rect.y = y_offset
+                self.screen.blit(text, text_rect)
                 
-            text_rect = text.get_rect()
-            text_rect.centerx = WINDOW_WIDTH // 2
-            text_rect.y = y_offset
-            self.screen.blit(text, text_rect)
-            
-            if line.startswith("🎮"):
-                y_offset += 40
-            else:
+                if line.startswith("Mobile Games"):
+                    y_offset += 40
+                else:
+                    y_offset += 25
+            except:
                 y_offset += 25
                 
     def run(self):
@@ -420,5 +542,10 @@ class GameLauncher:
         sys.exit()
 
 if __name__ == "__main__":
-    launcher = GameLauncher()
-    launcher.run()
+    try:
+        launcher = GameLauncher()
+        launcher.run()
+    except Exception as e:
+        print(f"Error starting launcher: {e}")
+        pygame.quit()
+        sys.exit(1)
