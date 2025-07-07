@@ -1,0 +1,33 @@
+{
+  "google_sheets": {
+    "spreadsheet_id": "1ABC123DEF456GHI789JKL0MNO-PQRSTUVWXYZ",
+    "worksheet_name": "Commands",
+    "credentials_file": "credentials.json"
+  },
+  "excel_online": {
+    "client_id": "12345678-1234-1234-1234-123456789012",
+    "tenant_id": "87654321-4321-4321-4321-210987654321",
+    "workbook_id": "1A2B3C4D-5E6F-7G8H-9I0J-1K2L3M4N5O6P",
+    "worksheet_name": "Commands"
+  },
+  "polling_interval": 5,
+  "allowed_commands": [
+    "ls",
+    "pwd",
+    "whoami",
+    "date",
+    "uptime",
+    "df -h",
+    "free -h",
+    "ps aux",
+    "top -n 1",
+    "systemctl status",
+    "netstat -tuln",
+    "uname -a",
+    "lscpu",
+    "lsblk",
+    "ip a",
+    "cat /etc/os-release"
+  ],
+  "max_history": 100
+}
