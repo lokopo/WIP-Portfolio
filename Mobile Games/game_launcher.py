@@ -313,6 +313,11 @@ class GameLauncher:
         # About dialog
         self.show_about = False
         
+        # Error handling
+        self.show_error = False
+        self.error_message = ""
+        self.error_start_time = 0
+        
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -326,25 +331,32 @@ class GameLauncher:
                 if event.button == 1:  # Left click/touch
                     self.touch_start = event.pos
                     
+                    # Dismiss error message
+                    if self.show_error:
+                        self.show_error = False
+                        continue
+                    
                     if self.show_about:
                         self.show_about = False
                         continue
                     
-                    # Check control buttons
-                    for button in self.control_buttons:
-                        if button.is_clicked(event.pos):
-                            button.pressed = True
-                            if button.action == "about":
-                                self.show_about = True
-                            elif button.action == "exit":
-                                return False
-                                
-                    # Check game buttons
-                    adjusted_pos = (event.pos[0], event.pos[1] + self.scroll_y)
-                    for button in self.game_buttons:
-                        if button.is_clicked(adjusted_pos):
-                            button.pressed = True
-                            self.launch_game(button.game_info)
+                    # Only allow interactions if not showing error
+                    if not self.show_error:
+                        # Check control buttons
+                        for button in self.control_buttons:
+                            if button.is_clicked(event.pos):
+                                button.pressed = True
+                                if button.action == "about":
+                                    self.show_about = True
+                                elif button.action == "exit":
+                                    return False
+                                    
+                        # Check game buttons
+                        adjusted_pos = (event.pos[0], event.pos[1] + self.scroll_y)
+                        for button in self.game_buttons:
+                            if button.is_clicked(adjusted_pos):
+                                button.pressed = True
+                                self.launch_game(button.game_info)
                             
             elif event.type == pygame.MOUSEBUTTONUP:
                 if event.button == 1:
@@ -359,17 +371,18 @@ class GameLauncher:
             elif event.type == pygame.MOUSEMOTION:
                 self.last_mouse_pos = event.pos
                 
-                # Handle scrolling
-                if self.touch_start and not self.show_about:
+                # Handle scrolling (only if not showing dialogs)
+                if self.touch_start and not self.show_about and not self.show_error:
                     dy = self.touch_start[1] - event.pos[1]
                     self.scroll_y += dy * 2
                     self.scroll_y = max(0, min(self.max_scroll, self.scroll_y))
                     self.touch_start = event.pos
                     
-                # Update hover states
-                adjusted_pos = (event.pos[0], event.pos[1] + self.scroll_y)
-                for button in self.game_buttons:
-                    button.update_hover(adjusted_pos)
+                # Update hover states (only if not showing error)
+                if not self.show_error:
+                    adjusted_pos = (event.pos[0], event.pos[1] + self.scroll_y)
+                    for button in self.game_buttons:
+                        button.update_hover(adjusted_pos)
                     
         return True
         
@@ -381,30 +394,46 @@ class GameLauncher:
             
             if os.path.exists(game_path):
                 print(f"Launching {game_info['name']}...")
-                # Close the launcher
+                
+                # Save current state
                 pygame.quit()
                 
-                # Launch the game
-                subprocess.run([sys.executable, game_path])
+                # Launch the game and wait for it to complete
+                result = subprocess.run([sys.executable, game_path])
                 
-                # Restart the launcher after game closes
-                try:
-                    pygame.init()
-                    if is_android():
-                        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.FULLSCREEN)
-                    else:
-                        self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-                    pygame.display.set_caption("Mobile Games Launcher")
-                except:
-                    self.screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+                # Check if game launched successfully
+                if result.returncode != 0:
+                    print(f"Game {game_info['name']} exited with error code: {result.returncode}")
+                
+                # Properly restart the entire launcher
+                print("Restarting launcher...")
+                subprocess.run([sys.executable, __file__])
+                sys.exit(0)
                 
             else:
                 print(f"Game file not found: {game_path}")
+                # Show error message to user instead of crashing
+                self.show_error_message(f"Game file not found: {game_info['name']}")
                 
+        except subprocess.CalledProcessError as e:
+            print(f"Error launching game {game_info['name']}: {e}")
+            self.show_error_message(f"Failed to launch {game_info['name']}")
         except Exception as e:
-            print(f"Error launching game: {e}")
+            print(f"Unexpected error launching game: {e}")
+            self.show_error_message(f"Error: {str(e)}")
+    
+    def show_error_message(self, message):
+        """Display an error message overlay"""
+        self.error_message = message
+        self.show_error = True
+        # Clear the error after 3 seconds
+        self.error_start_time = pygame.time.get_ticks()
             
     def draw(self):
+        # Auto-dismiss error after 3 seconds
+        if self.show_error and pygame.time.get_ticks() - self.error_start_time > 3000:
+            self.show_error = False
+            
         self.screen.fill(BLACK)
         
         # Draw title
@@ -464,8 +493,12 @@ class GameLauncher:
         if self.show_about:
             self.draw_about()
             
+        # Draw error dialog
+        if self.show_error:
+            self.draw_error()
+            
         # Draw instructions at bottom
-        if not self.show_about:
+        if not self.show_about and not self.show_error:
             try:
                 instruction_text = self.small_font.render("Swipe to scroll • Tap to select", True, GRAY)
                 instruction_rect = instruction_text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 20))
@@ -530,6 +563,83 @@ class GameLauncher:
                     y_offset += 25
             except:
                 y_offset += 25
+                
+    def draw_error(self):
+        """Draw error message overlay"""
+        # Overlay
+        try:
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            overlay.set_alpha(200)
+            overlay.fill(BLACK)
+            self.screen.blit(overlay, (0, 0))
+        except:
+            pass
+        
+        # Error box
+        box_width = min(WINDOW_WIDTH - 40, 400)
+        box_height = min(200, WINDOW_HEIGHT - 100)
+        box_x = (WINDOW_WIDTH - box_width) // 2
+        box_y = (WINDOW_HEIGHT - box_height) // 2
+        
+        pygame.draw.rect(self.screen, RED, (box_x, box_y, box_width, box_height))
+        pygame.draw.rect(self.screen, WHITE, (box_x, box_y, box_width, box_height), 3)
+        
+        # Error title
+        try:
+            title_text = self.font.render("Error", True, WHITE)
+            title_rect = title_text.get_rect(center=(WINDOW_WIDTH // 2, box_y + 30))
+            self.screen.blit(title_text, title_rect)
+        except:
+            pass
+        
+        # Error message
+        try:
+            # Wrap the error message if it's too long
+            max_width = box_width - 40
+            words = self.error_message.split(' ')
+            lines = []
+            current_line = []
+            
+            for word in words:
+                test_line = ' '.join(current_line + [word])
+                test_surface = self.small_font.render(test_line, True, WHITE)
+                
+                if test_surface.get_width() <= max_width:
+                    current_line.append(word)
+                else:
+                    if current_line:
+                        lines.append(' '.join(current_line))
+                        current_line = [word]
+                    else:
+                        lines.append(word)
+                        
+            if current_line:
+                lines.append(' '.join(current_line))
+            
+            # Draw the wrapped lines
+            y_offset = box_y + 70
+            for line in lines:
+                text_surface = self.small_font.render(line, True, WHITE)
+                text_rect = text_surface.get_rect(center=(WINDOW_WIDTH // 2, y_offset))
+                self.screen.blit(text_surface, text_rect)
+                y_offset += 25
+                
+        except:
+            # Fallback: just draw the raw message
+            try:
+                error_text = self.small_font.render(self.error_message, True, WHITE)
+                error_rect = error_text.get_rect(center=(WINDOW_WIDTH // 2, box_y + 70))
+                self.screen.blit(error_text, error_rect)
+            except:
+                pass
+        
+        # Instructions
+        try:
+            instruction_text = self.small_font.render("Tap to dismiss", True, GRAY)
+            instruction_rect = instruction_text.get_rect(center=(WINDOW_WIDTH // 2, box_y + box_height - 30))
+            self.screen.blit(instruction_text, instruction_rect)
+        except:
+            pass
                 
     def run(self):
         running = True
