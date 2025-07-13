@@ -1,671 +1,725 @@
 #!/usr/bin/env python3
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
+import customtkinter as ctk
 import json
 import os
-from datetime import datetime
-import tkinter as tk
+from datetime import datetime, date
 from tkinter import messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
+import tkinter as tk
+from typing import List, Dict, Optional
 
-class TodoApp:
-    def __init__(self):
-        self.window = TkinterDnD.Tk()
-        self.window.title("Modern Todo List")
-        self.window.geometry("1200x700")
-        
-        # Set theme
-        self.style = ttk.Style()
-        self.style.theme_use('darkly')
-        
-        # Create main container
-        self.main_container = ttk.Frame(self.window)
-        self.main_container.pack(fill="both", expand=True, padx=20, pady=20)
-        
-        # Create left sidebar
-        self.sidebar = ttk.Frame(self.main_container, width=300)
-        self.sidebar.pack(side="left", fill="y", padx=(0, 20))
-        
-        # Add buttons to sidebar
-        self.add_task_btn = ttk.Button(
-            self.sidebar,
-            text="Add Task",
-            command=self.show_add_task_dialog,
-            style='primary.TButton'
-        )
-        self.add_task_btn.pack(pady=10, padx=10, fill="x")
-        
-        self.add_folder_btn = ttk.Button(
-            self.sidebar,
-            text="Add Folder",
-            command=self.show_add_folder_dialog,
-            style='primary.TButton'
-        )
-        self.add_folder_btn.pack(pady=10, padx=10, fill="x")
-        
-        # Create folder tree view
-        self.folder_frame = ttk.Frame(self.sidebar)
-        self.folder_frame.pack(fill="both", expand=True, pady=10, padx=10)
-        
-        self.folder_label = ttk.Label(self.folder_frame, text="Folders:")
-        self.folder_label.pack(anchor="w")
-        
-        # Create Treeview for nested folders
-        self.folder_tree = ttk.Treeview(
-            self.folder_frame,
-            selectmode="browse",
-            show="tree"
-        )
-        self.folder_tree.pack(fill="both", expand=True)
-        self.folder_tree.bind('<<TreeviewSelect>>', self.on_folder_select)
-        
-        # Make folder tree draggable
-        self.folder_tree.bind('<Button-1>', self.start_folder_drag)
-        self.folder_tree.bind('<B1-Motion>', self.drag_folder)
-        self.folder_tree.bind('<ButtonRelease-1>', self.drop_folder)
-        
-        # Add double-click for renaming
-        self.folder_tree.bind('<Double-1>', self.rename_folder)
-        
-        # Create main content area
-        self.content = ttk.Frame(self.main_container)
-        self.content.pack(side="right", fill="both", expand=True)
-        
-        # Initialize task list
-        self.task_list = ttk.Frame(self.content)
-        self.task_list.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Create canvas and scrollbar for task list
-        self.canvas = tk.Canvas(self.task_list)
-        self.scrollbar = ttk.Scrollbar(self.task_list, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame = ttk.Frame(self.canvas)
-        
-        self.scrollable_frame.bind(
-            "<Configure>",
-            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        )
-        
-        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
-        
-        # Load existing tasks and folders
-        self.current_folder = "root"
-        self.load_folders()
-        self.load_tasks()
-        
-        # Drag and drop visual feedback
-        self.drag_window = None
-        self.drag_label = None
-        self.drop_zone = None
-        self.drop_zone_label = None
-        
-        # Create drop zone indicators
-        self.create_drop_zones()
+# Set appearance mode and color theme
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+
+class TaskCard(ctk.CTkFrame):
+    """A modern card widget for displaying individual tasks"""
     
-    def create_drop_zones(self):
-        # Create drop zone for root level
-        self.root_drop_zone = ttk.Frame(self.folder_frame, height=30)
-        self.root_drop_zone.pack(fill="x", pady=5)
-        self.root_drop_zone.pack_propagate(False)
+    def __init__(self, master, task: Dict, on_toggle, on_edit, on_delete, **kwargs):
+        super().__init__(master, **kwargs)
+        self.task = task
+        self.on_toggle = on_toggle
+        self.on_edit = on_edit
+        self.on_delete = on_delete
         
-        self.root_drop_label = ttk.Label(
-            self.root_drop_zone,
-            text="Drop here to move to root",
-            style='primary.TLabel'
+        self.setup_ui()
+        self.update_appearance()
+    
+    def setup_ui(self):
+        # Main container with padding
+        self.configure(fg_color=("gray90", "gray20"), corner_radius=10)
+        
+        # Header row with checkbox, title, and actions
+        header_frame = ctk.CTkFrame(self, fg_color="transparent")
+        header_frame.pack(fill="x", padx=10, pady=(10, 5))
+        
+        # Checkbox
+        self.checkbox_var = ctk.BooleanVar(value=self.task["completed"])
+        self.checkbox = ctk.CTkCheckBox(
+            header_frame,
+            text="",
+            variable=self.checkbox_var,
+            command=self.toggle_task,
+            width=20,
+            height=20
         )
-        self.root_drop_label.pack(pady=5)
+        self.checkbox.pack(side="left", padx=(0, 10))
         
-        # Initially hide drop zones
-        self.root_drop_zone.pack_forget()
-    
-    def show_drop_zone(self, zone, text):
-        if self.drop_zone:
-            self.drop_zone.pack_forget()
-        
-        self.drop_zone = zone
-        self.drop_zone_label = ttk.Label(
-            zone,
-            text=text,
-            style='primary.TLabel'
+        # Title (clickable for edit)
+        self.title_label = ctk.CTkLabel(
+            header_frame,
+            text=self.task["title"],
+            font=ctk.CTkFont(size=16, weight="bold"),
+            anchor="w"
         )
-        self.drop_zone_label.pack(pady=5)
-        zone.pack(fill="x", pady=5)
-    
-    def hide_drop_zone(self):
-        if self.drop_zone:
-            self.drop_zone.pack_forget()
-            self.drop_zone = None
-            self.drop_zone_label = None
-    
-    def create_drag_window(self, text):
-        if self.drag_window:
-            self.drag_window.destroy()
+        self.title_label.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.title_label.bind("<Button-1>", lambda e: self.on_edit(self.task))
         
-        self.drag_window = tk.Toplevel(self.window)
-        self.drag_window.overrideredirect(True)  # Remove window decorations
+        # Action buttons
+        actions_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
+        actions_frame.pack(side="right")
         
-        self.drag_label = ttk.Label(
-            self.drag_window,
-            text=text,
-            style='primary.TLabel'
+        # Edit button
+        edit_btn = ctk.CTkButton(
+            actions_frame,
+            text="✏️",
+            width=30,
+            height=30,
+            command=lambda: self.on_edit(self.task),
+            fg_color="transparent",
+            hover_color=("gray80", "gray30")
         )
-        self.drag_label.pack(padx=10, pady=5)
-    
-    def update_drag_window(self, event):
-        if self.drag_window:
-            x = self.window.winfo_rootx() + event.x
-            y = self.window.winfo_rooty() + event.y
-            self.drag_window.geometry(f"+{x}+{y}")
-    
-    def show_add_folder_dialog(self):
-        dialog = ttk.Toplevel(self.window)
-        dialog.title("Add New Folder")
-        dialog.geometry("500x300")
-        dialog.resizable(True, True)
+        edit_btn.pack(side="left", padx=2)
         
-        # Create main frame with padding
-        main_frame = ttk.Frame(dialog, padding="20")
-        main_frame.pack(fill="both", expand=True)
-        
-        # Folder name
-        name_label = ttk.Label(main_frame, text="Folder Name:")
-        name_label.pack(pady=10)
-        name_entry = ttk.Entry(main_frame, width=50)
-        name_entry.pack(pady=5, fill="x")
-        
-        # Parent folder selection
-        parent_label = ttk.Label(main_frame, text="Parent Folder:")
-        parent_label.pack(pady=10)
-        parent_var = tk.StringVar(value="root")
-        parent_menu = ttk.Combobox(
-            main_frame,
-            textvariable=parent_var,
-            values=self.get_all_folders(),
-            state="readonly",
-            width=47
+        # Delete button
+        delete_btn = ctk.CTkButton(
+            actions_frame,
+            text="🗑️",
+            width=30,
+            height=30,
+            command=lambda: self.on_delete(self.task),
+            fg_color="transparent",
+            hover_color=("red", "darkred")
         )
-        parent_menu.pack(pady=5, fill="x")
+        delete_btn.pack(side="left", padx=2)
         
-        def save_folder():
-            name = name_entry.get()
-            parent = parent_var.get()
+        # Details section
+        if self.task["description"] or self.task["due_date"]:
+            details_frame = ctk.CTkFrame(self, fg_color="transparent")
+            details_frame.pack(fill="x", padx=10, pady=(0, 10))
             
-            if name:
-                folder = {
-                    "name": name,
-                    "parent": parent,
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                self.save_folder(folder)
-                self.load_folders()
-                name_entry.delete(0, tk.END)  # Clear the entry
-                name_entry.focus()  # Focus back on the entry
-            else:
-                messagebox.showerror("Error", "Please enter a folder name")
+            # Description
+            if self.task["description"]:
+                desc_label = ctk.CTkLabel(
+                    details_frame,
+                    text=self.task["description"],
+                    font=ctk.CTkFont(size=12),
+                    anchor="w",
+                    wraplength=400
+                )
+                desc_label.pack(anchor="w", pady=(0, 5))
+            
+            # Due date with color coding
+            if self.task["due_date"]:
+                try:
+                    due_date = datetime.strptime(self.task["due_date"], "%Y-%m-%d").date()
+                    today = date.today()
+                    days_until = (due_date - today).days
+                    
+                    if days_until < 0:
+                        date_color = "red"
+                        date_text = f"Overdue by {abs(days_until)} days"
+                    elif days_until == 0:
+                        date_color = "orange"
+                        date_text = "Due today"
+                    elif days_until <= 3:
+                        date_color = "yellow"
+                        date_text = f"Due in {days_until} days"
+                    else:
+                        date_color = "green"
+                        date_text = f"Due in {days_until} days"
+                    
+                    date_label = ctk.CTkLabel(
+                        details_frame,
+                        text=date_text,
+                        font=ctk.CTkFont(size=11),
+                        text_color=date_color
+                    )
+                    date_label.pack(anchor="w")
+                except ValueError:
+                    pass
+    
+    def toggle_task(self):
+        self.task["completed"] = self.checkbox_var.get()
+        self.on_toggle(self.task)
+        self.update_appearance()
+    
+    def update_appearance(self):
+        if self.task["completed"]:
+            self.title_label.configure(text_color="gray")
+            self.configure(fg_color=("gray85", "gray25"))
+        else:
+            self.title_label.configure(text_color=("black", "white"))
+            self.configure(fg_color=("gray90", "gray20"))
+
+class ModernTodoApp:
+    def __init__(self):
+        self.window = ctk.CTk()
+        self.window.title("Modern Todo List")
+        self.window.geometry("1000x700")
+        self.window.minsize(800, 600)
         
-        # Bind Enter key to save_folder
-        name_entry.bind('<Return>', lambda e: save_folder())
+        # Data
+        self.current_folder = "All Tasks"
+        self.tasks: List[Dict] = []
+        self.folders: List[Dict] = []
         
-        # Add button
-        add_btn = ttk.Button(
-            main_frame,
-            text="Add",
-            command=save_folder,
-            style='primary.TButton'
+        # Load data
+        self.load_data()
+        
+        # Setup UI
+        self.setup_ui()
+        self.refresh_tasks()
+    
+    def setup_ui(self):
+        # Main container
+        main_container = ctk.CTkFrame(self.window, fg_color="transparent")
+        main_container.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Configure grid
+        main_container.grid_columnconfigure(1, weight=1)
+        main_container.grid_rowconfigure(0, weight=1)
+        
+        # Left sidebar
+        self.setup_sidebar(main_container)
+        
+        # Right content area
+        self.setup_content_area(main_container)
+    
+    def setup_sidebar(self, parent):
+        sidebar = ctk.CTkFrame(parent, width=250, corner_radius=10)
+        sidebar.grid(row=0, column=0, sticky="nsew", padx=(0, 20))
+        sidebar.grid_propagate(False)
+        
+        # Sidebar title
+        title_label = ctk.CTkLabel(
+            sidebar,
+            text="📁 Folders",
+            font=ctk.CTkFont(size=20, weight="bold")
         )
-        add_btn.pack(pady=20)
+        title_label.pack(pady=20, padx=20)
         
-        # Focus on the entry
-        name_entry.focus()
+        # Add folder button
+        add_folder_btn = ctk.CTkButton(
+            sidebar,
+            text="+ New Folder",
+            command=self.show_add_folder_dialog,
+            height=35
+        )
+        add_folder_btn.pack(pady=(0, 20), padx=20, fill="x")
+        
+        # Folders list
+        folders_frame = ctk.CTkScrollableFrame(sidebar, fg_color="transparent")
+        folders_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        
+        # All Tasks button (always first)
+        self.all_tasks_btn = ctk.CTkButton(
+            folders_frame,
+            text="📋 All Tasks",
+            command=lambda: self.select_folder("All Tasks"),
+            fg_color="transparent",
+            hover_color=("gray80", "gray30"),
+            anchor="w",
+            height=40
+        )
+        self.all_tasks_btn.pack(fill="x", pady=2)
+        
+        # Folder buttons will be added here
+        self.folder_buttons = []
+        self.refresh_folders()
     
-    def get_all_folders(self):
-        folders = []
-        for folder in self.load_folders_data():
-            folders.append(folder["name"])
-        return folders
+    def setup_content_area(self, parent):
+        content = ctk.CTkFrame(parent, corner_radius=10)
+        content.grid(row=0, column=1, sticky="nsew")
+        
+        # Header
+        header_frame = ctk.CTkFrame(content, fg_color="transparent")
+        header_frame.pack(fill="x", padx=20, pady=20)
+        
+        # Current folder title
+        self.folder_title = ctk.CTkLabel(
+            header_frame,
+            text="All Tasks",
+            font=ctk.CTkFont(size=24, weight="bold")
+        )
+        self.folder_title.pack(side="left")
+        
+        # Add task button
+        add_task_btn = ctk.CTkButton(
+            header_frame,
+            text="+ Add Task",
+            command=self.show_add_task_dialog,
+            height=35
+        )
+        add_task_btn.pack(side="right")
+        
+        # Search bar
+        search_frame = ctk.CTkFrame(content, fg_color="transparent")
+        search_frame.pack(fill="x", padx=20, pady=(0, 20))
+        
+        search_label = ctk.CTkLabel(search_frame, text="🔍 Search:")
+        search_label.pack(side="left", padx=(0, 10))
+        
+        self.search_entry = ctk.CTkEntry(
+            search_frame,
+            placeholder_text="Search tasks...",
+            width=300
+        )
+        self.search_entry.pack(side="left", fill="x", expand=True)
+        self.search_entry.bind("<KeyRelease>", self.on_search)
+        
+        # Filter buttons
+        filter_frame = ctk.CTkFrame(content, fg_color="transparent")
+        filter_frame.pack(fill="x", padx=20, pady=(0, 20))
+        
+        self.filter_var = ctk.StringVar(value="all")
+        
+        all_btn = ctk.CTkRadioButton(
+            filter_frame,
+            text="All",
+            variable=self.filter_var,
+            value="all",
+            command=self.refresh_tasks
+        )
+        all_btn.pack(side="left", padx=(0, 20))
+        
+        pending_btn = ctk.CTkRadioButton(
+            filter_frame,
+            text="Pending",
+            variable=self.filter_var,
+            value="pending",
+            command=self.refresh_tasks
+        )
+        pending_btn.pack(side="left", padx=(0, 20))
+        
+        completed_btn = ctk.CTkRadioButton(
+            filter_frame,
+            text="Completed",
+            variable=self.filter_var,
+            value="completed",
+            command=self.refresh_tasks
+        )
+        completed_btn.pack(side="left")
+        
+        # Tasks area
+        tasks_frame = ctk.CTkFrame(content, fg_color="transparent")
+        tasks_frame.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+        
+        # Tasks scrollable area
+        self.tasks_scrollable = ctk.CTkScrollableFrame(
+            tasks_frame,
+            fg_color="transparent"
+        )
+        self.tasks_scrollable.pack(fill="both", expand=True)
+        
+        # Status bar
+        self.status_label = ctk.CTkLabel(
+            content,
+            text="0 tasks",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        )
+        self.status_label.pack(side="bottom", anchor="w", padx=20, pady=10)
     
-    def save_folder(self, folder):
-        folders = self.load_folders_data()
-        folders.append(folder)
-        with open("data/folders.json", "w") as f:
-            json.dump(folders, f, indent=4)
-    
-    def load_folders_data(self):
+    def load_data(self):
+        """Load tasks and folders from JSON files"""
+        # Load tasks
+        try:
+            with open("data/tasks.json", "r") as f:
+                self.tasks = json.load(f)
+        except FileNotFoundError:
+            self.tasks = []
+        
+        # Load folders
         try:
             with open("data/folders.json", "r") as f:
-                return json.load(f)
+                self.folders = json.load(f)
         except FileNotFoundError:
-            return []
+            self.folders = []
     
-    def load_folders(self):
-        # Clear existing items
-        for item in self.folder_tree.get_children():
-            self.folder_tree.delete(item)
+    def save_data(self):
+        """Save tasks and folders to JSON files"""
+        # Ensure directories exist
+        os.makedirs("data", exist_ok=True)
         
-        # Add all folders
-        folders = self.load_folders_data()
-        folder_dict = {}
+        # Save tasks
+        with open("data/tasks.json", "w") as f:
+            json.dump(self.tasks, f, indent=2)
         
-        # First pass: create all folder entries
-        for folder in folders:
-            if folder["parent"] == "root":
-                # Add root-level folders directly
-                folder_id = self.folder_tree.insert(
-                    "",
-                    "end",
-                    text=folder["name"],
-                    values=[folder["name"]]
-                )
-                folder_dict[folder["name"]] = folder_id
-            else:
-                # Add subfolders under their parent
-                parent_id = folder_dict.get(folder["parent"])
-                if parent_id:
-                    folder_id = self.folder_tree.insert(
-                        parent_id,
-                        "end",
-                        text=folder["name"],
-                        values=[folder["name"]]
-                    )
-                    folder_dict[folder["name"]] = folder_id
+        # Save folders
+        with open("data/folders.json", "w") as f:
+            json.dump(self.folders, f, indent=2)
     
-    def on_folder_select(self, event):
-        selection = self.folder_tree.selection()
-        if selection:
-            self.current_folder = self.folder_tree.item(selection[0])["values"][0]
-            self.load_tasks()
-        else:
-            self.current_folder = "root"
-            self.load_tasks()
+    def refresh_folders(self):
+        """Refresh the folder buttons in the sidebar"""
+        # Remove existing folder buttons
+        for btn in self.folder_buttons:
+            btn.destroy()
+        self.folder_buttons.clear()
+        
+        # Add folder buttons
+        for folder in self.folders:
+            btn = ctk.CTkButton(
+                self.tasks_scrollable.master.master,  # Navigate to folders_frame
+                text=f"📁 {folder['name']}",
+                command=lambda f=folder: self.select_folder(f['name']),
+                fg_color="transparent",
+                hover_color=("gray80", "gray30"),
+                anchor="w",
+                height=40
+            )
+            btn.pack(fill="x", pady=2)
+            self.folder_buttons.append(btn)
     
-    def show_add_task_dialog(self):
-        dialog = ttk.Toplevel(self.window)
-        dialog.title("Add New Task")
-        dialog.geometry("500x400")
-        dialog.resizable(True, True)
+    def select_folder(self, folder_name: str):
+        """Select a folder and refresh the task display"""
+        self.current_folder = folder_name
+        self.folder_title.configure(text=folder_name)
         
-        # Create main frame with padding
-        main_frame = ttk.Frame(dialog, padding="20")
-        main_frame.pack(fill="both", expand=True)
+        # Update button appearances
+        self.all_tasks_btn.configure(fg_color=("gray80", "gray30") if folder_name == "All Tasks" else "transparent")
+        for btn in self.folder_buttons:
+            btn.configure(fg_color="transparent")
         
-        # Configure grid weights
-        main_frame.grid_columnconfigure(1, weight=1)
-        main_frame.grid_rowconfigure(2, weight=1)  # Description row gets extra space
-        
-        # Task title
-        title_label = ttk.Label(main_frame, text="Task Title:")
-        title_label.grid(row=0, column=0, sticky="w", pady=10)
-        title_entry = ttk.Entry(main_frame)
-        title_entry.grid(row=0, column=1, sticky="ew", pady=10)
-        
-        # Task description
-        desc_label = ttk.Label(main_frame, text="Description:")
-        desc_label.grid(row=1, column=0, sticky="w", pady=10)
-        desc_text = tk.Text(main_frame, height=6)
-        desc_text.grid(row=2, column=0, columnspan=2, sticky="nsew", pady=10)
-        
-        # Due date
-        date_label = ttk.Label(main_frame, text="Due Date (YYYY-MM-DD):")
-        date_label.grid(row=3, column=0, sticky="w", pady=10)
-        date_entry = ttk.Entry(main_frame)
-        date_entry.grid(row=3, column=1, sticky="ew", pady=10)
-        
-        def save_task():
-            title = title_entry.get()
-            description = desc_text.get("1.0", "end-1c")
-            due_date = date_entry.get()
-            
-            if title and due_date:
-                task = {
-                    "title": title,
-                    "description": description,
-                    "due_date": due_date,
-                    "completed": False,
-                    "folder": self.current_folder,
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                }
-                self.save_task(task)
-                self.load_tasks()
-                # Clear entries
-                title_entry.delete(0, tk.END)
-                desc_text.delete("1.0", tk.END)
-                date_entry.delete(0, tk.END)
-                title_entry.focus()  # Focus back on the title entry
-            else:
-                messagebox.showerror("Error", "Please fill in all required fields")
-        
-        # Bind Enter key to save_task
-        title_entry.bind('<Return>', lambda e: save_task())
-        date_entry.bind('<Return>', lambda e: save_task())
-        
-        # Add button
-        add_btn = ttk.Button(
-            main_frame,
-            text="Add",
-            command=save_task,
-            style='primary.TButton'
-        )
-        add_btn.grid(row=4, column=0, columnspan=2, pady=20)
-        
-        # Focus on the title entry
-        title_entry.focus()
-        
-        # Update window size to fit content
-        dialog.update_idletasks()
-        width = main_frame.winfo_reqwidth() + 40  # Add padding
-        height = main_frame.winfo_reqheight() + 40
-        dialog.geometry(f"{width}x{height}")
-        
-        # Make sure the window doesn't get too small
-        dialog.minsize(400, 300)
+        self.refresh_tasks()
     
-    def save_task(self, task):
-        tasks = self.load_tasks_data()
-        tasks.append(task)
-        with open("data/tasks/tasks.json", "w") as f:
-            json.dump(tasks, f, indent=4)
-    
-    def load_tasks_data(self):
-        try:
-            with open("data/tasks/tasks.json", "r") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            return []
-    
-    def load_tasks(self):
+    def refresh_tasks(self):
+        """Refresh the task display based on current folder and filter"""
         # Clear existing tasks
-        for widget in self.scrollable_frame.winfo_children():
+        for widget in self.tasks_scrollable.winfo_children():
             widget.destroy()
         
-        tasks = self.load_tasks_data()
-        for task in tasks:
-            if task["folder"] == self.current_folder:
-                task_frame = ttk.Frame(self.scrollable_frame)
-                task_frame.pack(fill="x", pady=5, padx=5)
-                
-                # Make task frame draggable
-                task_frame.bind('<Button-1>', lambda e, t=task: self.start_drag(e, t))
-                task_frame.bind('<B1-Motion>', lambda e, t=task: self.drag(e, t))
-                task_frame.bind('<ButtonRelease-1>', lambda e, t=task: self.drop(e, t))
-                
-                # Task title and checkbox
-                title_frame = ttk.Frame(task_frame)
-                title_frame.pack(fill="x", pady=5)
-                
-                checkbox = ttk.Checkbutton(
-                    title_frame,
-                    text=task["title"],
-                    command=lambda t=task: self.toggle_task(t)
-                )
-                checkbox.pack(side="left", padx=5)
-                if task["completed"]:
-                    checkbox.state(['selected'])
-                
-                # Add double-click for renaming
-                checkbox.bind('<Double-1>', lambda e, t=task: self.rename_task(t))
-                
-                # Task details
-                details_frame = ttk.Frame(task_frame)
-                details_frame.pack(fill="x", pady=5)
-                
-                desc_label = ttk.Label(
-                    details_frame,
-                    text=f"Description: {task['description']}"
-                )
-                desc_label.pack(anchor="w", padx=5)
-                
-                date_label = ttk.Label(
-                    details_frame,
-                    text=f"Due: {task['due_date']}"
-                )
-                date_label.pack(anchor="w", padx=5)
-    
-    def start_drag(self, event, task):
-        self.drag_data = task
-        self.create_drag_window(task["title"])
-        self.update_drag_window(event)
-        # Show root drop zone
-        self.root_drop_zone.pack(fill="x", pady=5)
-    
-    def drag(self, event, task):
-        if hasattr(self, 'drag_data'):
-            self.update_drag_window(event)
+        # Filter tasks
+        filtered_tasks = []
+        for task in self.tasks:
+            # Folder filter
+            if self.current_folder != "All Tasks" and task.get("folder", "All Tasks") != self.current_folder:
+                continue
             
-            # Check if over folder tree
-            tree_x = self.folder_tree.winfo_rootx() - self.window.winfo_rootx()
-            tree_y = self.folder_tree.winfo_rooty() - self.window.winfo_rooty()
+            # Status filter
+            if self.filter_var.get() == "pending" and task["completed"]:
+                continue
+            if self.filter_var.get() == "completed" and not task["completed"]:
+                continue
             
-            if (tree_x <= event.x <= tree_x + self.folder_tree.winfo_width() and
-                tree_y <= event.y <= tree_y + self.folder_tree.winfo_height()):
-                # Over folder tree
-                target_item = self.folder_tree.identify_row(event.y + tree_y)
-                if target_item:
-                    self.folder_tree.selection_set(target_item)
-                    self.hide_drop_zone()
-                else:
-                    self.folder_tree.selection_remove(self.folder_tree.selection())
-                    self.show_drop_zone(self.root_drop_zone, "Drop here to move to root level")
-            else:
-                # Not over folder tree
-                self.folder_tree.selection_remove(self.folder_tree.selection())
-                self.show_drop_zone(self.root_drop_zone, "Drop here to move to root level")
-    
-    def drop(self, event, task):
-        if hasattr(self, 'drag_data'):
-            # Check if over folder tree
-            tree_x = self.folder_tree.winfo_rootx() - self.window.winfo_rootx()
-            tree_y = self.folder_tree.winfo_rooty() - self.window.winfo_rooty()
+            # Search filter
+            search_term = self.search_entry.get().lower()
+            if search_term:
+                if (search_term not in task["title"].lower() and 
+                    search_term not in task.get("description", "").lower()):
+                    continue
             
-            if (tree_x <= event.x <= tree_x + self.folder_tree.winfo_width() and
-                tree_y <= event.y <= tree_y + self.folder_tree.winfo_height()):
-                # Over folder tree
-                target_item = self.folder_tree.identify_row(event.y + tree_y)
-                if target_item:
-                    target_folder = self.folder_tree.item(target_item)["values"][0]
-                    if target_folder != task["folder"]:
-                        # Update task's folder
-                        tasks = self.load_tasks_data()
-                        for t in tasks:
-                            if t["title"] == task["title"] and t["folder"] == task["folder"]:
-                                t["folder"] = target_folder
-                                break
-                        with open("data/tasks/tasks.json", "w") as f:
-                            json.dump(tasks, f, indent=4)
-                        self.load_tasks()
-            else:
-                # Over root drop zone
-                if self.drop_zone == self.root_drop_zone:
-                    # Move task to root
-                    tasks = self.load_tasks_data()
-                    for t in tasks:
-                        if t["title"] == task["title"] and t["folder"] == task["folder"]:
-                            t["folder"] = "root"
-                            break
-                    with open("data/tasks/tasks.json", "w") as f:
-                        json.dump(tasks, f, indent=4)
-                    self.load_tasks()
-            
-            # Cleanup
-            self.hide_drop_zone()
-            self.root_drop_zone.pack_forget()
-            if self.drag_window:
-                self.drag_window.destroy()
-                self.drag_window = None
-            delattr(self, 'drag_data')
-    
-    def start_folder_drag(self, event):
-        item = self.folder_tree.identify_row(event.y)
-        if item:
-            self.folder_drag_data = self.folder_tree.item(item)["values"][0]
-            self.create_drag_window(self.folder_drag_data)
-            self.update_drag_window(event)
-            # Show root drop zone
-            self.root_drop_zone.pack(fill="x", pady=5)
-    
-    def drag_folder(self, event):
-        if hasattr(self, 'folder_drag_data'):
-            self.update_drag_window(event)
-            
-            # Check if over folder tree
-            tree_x = self.folder_tree.winfo_rootx() - self.window.winfo_rootx()
-            tree_y = self.folder_tree.winfo_rooty() - self.window.winfo_rooty()
-            
-            if (tree_x <= event.x <= tree_x + self.folder_tree.winfo_width() and
-                tree_y <= event.y <= tree_y + self.folder_tree.winfo_height()):
-                # Over folder tree
-                target_item = self.folder_tree.identify_row(event.y + tree_y)
-                if target_item:
-                    self.folder_tree.selection_set(target_item)
-                    self.hide_drop_zone()
-                else:
-                    self.folder_tree.selection_remove(self.folder_tree.selection())
-                    self.show_drop_zone(self.root_drop_zone, "Drop here to move to root level")
-            else:
-                # Not over folder tree
-                self.folder_tree.selection_remove(self.folder_tree.selection())
-                self.show_drop_zone(self.root_drop_zone, "Drop here to move to root level")
-    
-    def drop_folder(self, event):
-        if hasattr(self, 'folder_drag_data'):
-            # Check if over folder tree
-            tree_x = self.folder_tree.winfo_rootx() - self.window.winfo_rootx()
-            tree_y = self.folder_tree.winfo_rooty() - self.window.winfo_rooty()
-            
-            if (tree_x <= event.x <= tree_x + self.folder_tree.winfo_width() and
-                tree_y <= event.y <= tree_y + self.folder_tree.winfo_height()):
-                # Over folder tree
-                target_item = self.folder_tree.identify_row(event.y + tree_y)
-                if target_item:
-                    target_folder = self.folder_tree.item(target_item)["values"][0]
-                    if target_folder != self.folder_drag_data:
-                        # Update folder's parent
-                        folders = self.load_folders_data()
-                        for folder in folders:
-                            if folder["name"] == self.folder_drag_data:
-                                folder["parent"] = target_folder
-                                break
-                        with open("data/folders.json", "w") as f:
-                            json.dump(folders, f, indent=4)
-                        self.load_folders()
-            else:
-                # Over root drop zone
-                if self.drop_zone == self.root_drop_zone:
-                    # Move folder to root level
-                    folders = self.load_folders_data()
-                    for folder in folders:
-                        if folder["name"] == self.folder_drag_data:
-                            folder["parent"] = "root"
-                            break
-                    with open("data/folders.json", "w") as f:
-                        json.dump(folders, f, indent=4)
-                    self.load_folders()
-            
-            # Cleanup
-            self.hide_drop_zone()
-            self.root_drop_zone.pack_forget()
-            if self.drag_window:
-                self.drag_window.destroy()
-                self.drag_window = None
-            delattr(self, 'folder_drag_data')
-    
-    def rename_folder(self, event):
-        item = self.folder_tree.identify_row(event.y)
-        if item:
-            old_name = self.folder_tree.item(item)["values"][0]
-            
-            dialog = ttk.Toplevel(self.window)
-            dialog.title("Rename Folder")
-            dialog.geometry("300x150")
-            
-            # Create main frame with padding
-            main_frame = ttk.Frame(dialog, padding="20")
-            main_frame.pack(fill="both", expand=True)
-            
-            # New name entry
-            name_label = ttk.Label(main_frame, text="New Name:")
-            name_label.pack(pady=10)
-            name_entry = ttk.Entry(main_frame)
-            name_entry.insert(0, old_name)
-            name_entry.pack(pady=5, fill="x")
-            
-            def save_rename():
-                new_name = name_entry.get()
-                if new_name and new_name != old_name:
-                    folders = self.load_folders_data()
-                    for folder in folders:
-                        if folder["name"] == old_name:
-                            folder["name"] = new_name
-                            break
-                    with open("data/folders.json", "w") as f:
-                        json.dump(folders, f, indent=4)
-                    self.load_folders()
-                    dialog.destroy()
-            
-            # Bind Enter key
-            name_entry.bind('<Return>', lambda e: save_rename())
-            
-            # Rename button
-            rename_btn = ttk.Button(
-                main_frame,
-                text="Rename",
-                command=save_rename,
-                style='primary.TButton'
+            filtered_tasks.append(task)
+        
+        # Sort tasks (pending first, then by due date)
+        filtered_tasks.sort(key=lambda x: (x["completed"], x.get("due_date", "9999-12-31")))
+        
+        # Create task cards
+        for task in filtered_tasks:
+            task_card = TaskCard(
+                self.tasks_scrollable,
+                task,
+                on_toggle=self.toggle_task,
+                on_edit=self.edit_task,
+                on_delete=self.delete_task
             )
-            rename_btn.pack(pady=20)
-            
-            # Focus on the entry
-            name_entry.focus()
+            task_card.pack(fill="x", pady=5)
+        
+        # Update status
+        total_tasks = len([t for t in self.tasks if not t["completed"]])
+        completed_tasks = len([t for t in self.tasks if t["completed"]])
+        self.status_label.configure(text=f"{len(filtered_tasks)} tasks shown ({total_tasks} pending, {completed_tasks} completed)")
     
-    def rename_task(self, task):
-        dialog = ttk.Toplevel(self.window)
-        dialog.title("Rename Task")
-        dialog.geometry("300x150")
+    def on_search(self, event):
+        """Handle search input"""
+        self.refresh_tasks()
+    
+    def show_add_task_dialog(self):
+        """Show dialog to add a new task"""
+        dialog = ctk.CTkToplevel(self.window)
+        dialog.title("Add New Task")
+        dialog.geometry("500x400")
+        dialog.resizable(False, False)
+        dialog.transient(self.window)
+        dialog.grab_set()
         
-        # Create main frame with padding
-        main_frame = ttk.Frame(dialog, padding="20")
-        main_frame.pack(fill="both", expand=True)
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (400 // 2)
+        dialog.geometry(f"500x400+{x}+{y}")
         
-        # New name entry
-        name_label = ttk.Label(main_frame, text="New Title:")
-        name_label.pack(pady=10)
-        name_entry = ttk.Entry(main_frame)
-        name_entry.insert(0, task["title"])
-        name_entry.pack(pady=5, fill="x")
+        # Main frame
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
         
-        def save_rename():
-            new_title = name_entry.get()
-            if new_title and new_title != task["title"]:
-                tasks = self.load_tasks_data()
-                for t in tasks:
-                    if t["title"] == task["title"] and t["folder"] == task["folder"]:
-                        t["title"] = new_title
-                        break
-                with open("data/tasks/tasks.json", "w") as f:
-                    json.dump(tasks, f, indent=4)
-                self.load_tasks()
-                dialog.destroy()
+        # Title
+        title_label = ctk.CTkLabel(main_frame, text="Add New Task", font=ctk.CTkFont(size=20, weight="bold"))
+        title_label.pack(pady=(0, 20))
         
-        # Bind Enter key
-        name_entry.bind('<Return>', lambda e: save_rename())
+        # Task title
+        title_entry_label = ctk.CTkLabel(main_frame, text="Task Title:")
+        title_entry_label.pack(anchor="w", padx=20)
         
-        # Rename button
-        rename_btn = ttk.Button(
+        title_entry = ctk.CTkEntry(main_frame, placeholder_text="Enter task title...")
+        title_entry.pack(fill="x", padx=20, pady=(0, 15))
+        
+        # Description
+        desc_label = ctk.CTkLabel(main_frame, text="Description (optional):")
+        desc_label.pack(anchor="w", padx=20)
+        
+        desc_text = ctk.CTkTextbox(main_frame, height=100)
+        desc_text.pack(fill="x", padx=20, pady=(0, 15))
+        
+        # Due date
+        date_label = ctk.CTkLabel(main_frame, text="Due Date (YYYY-MM-DD, optional):")
+        date_label.pack(anchor="w", padx=20)
+        
+        date_entry = ctk.CTkEntry(main_frame, placeholder_text="2024-12-31")
+        date_entry.pack(fill="x", padx=20, pady=(0, 15))
+        
+        # Folder selection
+        folder_label = ctk.CTkLabel(main_frame, text="Folder:")
+        folder_label.pack(anchor="w", padx=20)
+        
+        folder_var = ctk.StringVar(value=self.current_folder if self.current_folder != "All Tasks" else "")
+        folder_menu = ctk.CTkOptionMenu(
             main_frame,
-            text="Rename",
-            command=save_rename,
-            style='primary.TButton'
+            variable=folder_var,
+            values=["All Tasks"] + [f["name"] for f in self.folders]
         )
-        rename_btn.pack(pady=20)
+        folder_menu.pack(fill="x", padx=20, pady=(0, 20))
         
-        # Focus on the entry
+        # Buttons
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill="x", padx=20, pady=(0, 20))
+        
+        def save_task():
+            title = title_entry.get().strip()
+            if not title:
+                messagebox.showerror("Error", "Please enter a task title")
+                return
+            
+            description = desc_text.get("1.0", "end-1c").strip()
+            due_date = date_entry.get().strip()
+            folder = folder_var.get()
+            
+            # Validate due date
+            if due_date:
+                try:
+                    datetime.strptime(due_date, "%Y-%m-%d")
+                except ValueError:
+                    messagebox.showerror("Error", "Please enter a valid date (YYYY-MM-DD)")
+                    return
+            
+            # Create task
+            task = {
+                "title": title,
+                "description": description,
+                "due_date": due_date if due_date else None,
+                "completed": False,
+                "folder": folder if folder != "All Tasks" else "All Tasks",
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            self.tasks.append(task)
+            self.save_data()
+            self.refresh_tasks()
+            dialog.destroy()
+        
+        def cancel():
+            dialog.destroy()
+        
+        save_btn = ctk.CTkButton(buttons_frame, text="Save", command=save_task)
+        save_btn.pack(side="right", padx=(10, 0))
+        
+        cancel_btn = ctk.CTkButton(buttons_frame, text="Cancel", command=cancel, fg_color="gray")
+        cancel_btn.pack(side="right")
+        
+        # Focus on title entry
+        title_entry.focus()
+        title_entry.bind("<Return>", lambda e: save_task())
+    
+    def show_add_folder_dialog(self):
+        """Show dialog to add a new folder"""
+        dialog = ctk.CTkToplevel(self.window)
+        dialog.title("Add New Folder")
+        dialog.geometry("400x200")
+        dialog.resizable(False, False)
+        dialog.transient(self.window)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (400 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (200 // 2)
+        dialog.geometry(f"400x200+{x}+{y}")
+        
+        # Main frame
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Title
+        title_label = ctk.CTkLabel(main_frame, text="Add New Folder", font=ctk.CTkFont(size=20, weight="bold"))
+        title_label.pack(pady=(0, 20))
+        
+        # Folder name
+        name_label = ctk.CTkLabel(main_frame, text="Folder Name:")
+        name_label.pack(anchor="w", padx=20)
+        
+        name_entry = ctk.CTkEntry(main_frame, placeholder_text="Enter folder name...")
+        name_entry.pack(fill="x", padx=20, pady=(0, 20))
+        
+        # Buttons
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill="x", padx=20)
+        
+        def save_folder():
+            name = name_entry.get().strip()
+            if not name:
+                messagebox.showerror("Error", "Please enter a folder name")
+                return
+            
+            # Check if folder already exists
+            if any(f["name"] == name for f in self.folders):
+                messagebox.showerror("Error", "A folder with this name already exists")
+                return
+            
+            folder = {
+                "name": name,
+                "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            self.folders.append(folder)
+            self.save_data()
+            self.refresh_folders()
+            dialog.destroy()
+        
+        def cancel():
+            dialog.destroy()
+        
+        save_btn = ctk.CTkButton(buttons_frame, text="Save", command=save_folder)
+        save_btn.pack(side="right", padx=(10, 0))
+        
+        cancel_btn = ctk.CTkButton(buttons_frame, text="Cancel", command=cancel, fg_color="gray")
+        cancel_btn.pack(side="right")
+        
+        # Focus on name entry
         name_entry.focus()
+        name_entry.bind("<Return>", lambda e: save_folder())
+    
+    def toggle_task(self, task: Dict):
+        """Toggle task completion status"""
+        task["completed"] = not task["completed"]
+        self.save_data()
+        self.refresh_tasks()
+    
+    def edit_task(self, task: Dict):
+        """Edit an existing task"""
+        dialog = ctk.CTkToplevel(self.window)
+        dialog.title("Edit Task")
+        dialog.geometry("500x400")
+        dialog.resizable(False, False)
+        dialog.transient(self.window)
+        dialog.grab_set()
+        
+        # Center the dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (500 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (400 // 2)
+        dialog.geometry(f"500x400+{x}+{y}")
+        
+        # Main frame
+        main_frame = ctk.CTkFrame(dialog)
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+        
+        # Title
+        title_label = ctk.CTkLabel(main_frame, text="Edit Task", font=ctk.CTkFont(size=20, weight="bold"))
+        title_label.pack(pady=(0, 20))
+        
+        # Task title
+        title_entry_label = ctk.CTkLabel(main_frame, text="Task Title:")
+        title_entry_label.pack(anchor="w", padx=20)
+        
+        title_entry = ctk.CTkEntry(main_frame, placeholder_text="Enter task title...")
+        title_entry.insert(0, task["title"])
+        title_entry.pack(fill="x", padx=20, pady=(0, 15))
+        
+        # Description
+        desc_label = ctk.CTkLabel(main_frame, text="Description (optional):")
+        desc_label.pack(anchor="w", padx=20)
+        
+        desc_text = ctk.CTkTextbox(main_frame, height=100)
+        desc_text.insert("1.0", task.get("description", ""))
+        desc_text.pack(fill="x", padx=20, pady=(0, 15))
+        
+        # Due date
+        date_label = ctk.CTkLabel(main_frame, text="Due Date (YYYY-MM-DD, optional):")
+        date_label.pack(anchor="w", padx=20)
+        
+        date_entry = ctk.CTkEntry(main_frame, placeholder_text="2024-12-31")
+        if task.get("due_date"):
+            date_entry.insert(0, task["due_date"])
+        date_entry.pack(fill="x", padx=20, pady=(0, 15))
+        
+        # Folder selection
+        folder_label = ctk.CTkLabel(main_frame, text="Folder:")
+        folder_label.pack(anchor="w", padx=20)
+        
+        current_folder = task.get("folder", "All Tasks")
+        folder_var = ctk.StringVar(value=current_folder)
+        folder_menu = ctk.CTkOptionMenu(
+            main_frame,
+            variable=folder_var,
+            values=["All Tasks"] + [f["name"] for f in self.folders]
+        )
+        folder_menu.pack(fill="x", padx=20, pady=(0, 20))
+        
+        # Buttons
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill="x", padx=20, pady=(0, 20))
+        
+        def save_changes():
+            title = title_entry.get().strip()
+            if not title:
+                messagebox.showerror("Error", "Please enter a task title")
+                return
+            
+            description = desc_text.get("1.0", "end-1c").strip()
+            due_date = date_entry.get().strip()
+            folder = folder_var.get()
+            
+            # Validate due date
+            if due_date:
+                try:
+                    datetime.strptime(due_date, "%Y-%m-%d")
+                except ValueError:
+                    messagebox.showerror("Error", "Please enter a valid date (YYYY-MM-DD)")
+                    return
+            
+            # Update task
+            task["title"] = title
+            task["description"] = description
+            task["due_date"] = due_date if due_date else None
+            task["folder"] = folder if folder != "All Tasks" else "All Tasks"
+            
+            self.save_data()
+            self.refresh_tasks()
+            dialog.destroy()
+        
+        def cancel():
+            dialog.destroy()
+        
+        save_btn = ctk.CTkButton(buttons_frame, text="Save", command=save_changes)
+        save_btn.pack(side="right", padx=(10, 0))
+        
+        cancel_btn = ctk.CTkButton(buttons_frame, text="Cancel", command=cancel, fg_color="gray")
+        cancel_btn.pack(side="right")
+        
+        # Focus on title entry
+        title_entry.focus()
+        title_entry.bind("<Return>", lambda e: save_changes())
+    
+    def delete_task(self, task: Dict):
+        """Delete a task"""
+        if messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{task['title']}'?"):
+            self.tasks.remove(task)
+            self.save_data()
+            self.refresh_tasks()
     
     def run(self):
+        """Start the application"""
         self.window.mainloop()
 
 if __name__ == "__main__":
-    app = TodoApp()
+    app = ModernTodoApp()
     app.run() 
