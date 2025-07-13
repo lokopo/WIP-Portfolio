@@ -1,142 +1,193 @@
-# 🎮 Mobile Games Collection & Python Projects
+# Job Application Tracker
 
-![Status: Active](https://img.shields.io/badge/Status-Active-green) ![Python](https://img.shields.io/badge/Python-3.6+-blue.svg) ![Projects](https://img.shields.io/badge/Projects-15+-orange.svg)
+A comprehensive dashboard to track your job applications, manage resumes, cover letters, and other documentation. Built with React, Vite, and Tailwind CSS.
 
-## 🌟 Featured: Mobile Games Collection
+## Features
 
-**🎮 6 Classic Games for Android - Easy to Download & Play!**
+### 📊 Dashboard
+- Overview statistics (total applications, status breakdown)
+- Recent job applications
+- Document management summary
+- Quick access to key actions
 
-- 🐍 **Snake Classic** - The timeless favorite
-- 🧩 **Tetris Mobile** - Block-stacking puzzle  
-- 👾 **Space Invaders** - Retro arcade shooter
-- 🔢 **Puzzle Slider** - Number sliding challenge
-- 🧠 **Memory Match** - Card matching game
-- 🎯 **Breakout** - Ball and paddle action
+### 💼 Job Applications
+- **Add new applications** with comprehensive details:
+  - Company and position information
+  - Location and salary details
+  - Contact information
+  - Job descriptions
+  - Application URLs
+  - Custom notes and reminders
+- **Track application status**: Applied, Interviewing, Offered, Rejected, Withdrawn
+- **Search and filter** applications by company, position, location, or status
+- **Sort** by date, company, or status
+- **Edit and update** application details
+- **Delete** applications with confirmation
 
-### 🚀 Quick Start for Mobile Games
+### � Document Management
+- **Organize documents** by type:
+  - Resumes
+  - Cover Letters
+  - Portfolios
+  - Certificates
+  - Other documents
+- **Add document metadata**:
+  - Name and description
+  - File URLs or paths
+  - Tags for easy categorization
+- **Search and filter** documents
+- **Edit and delete** document information
 
-**Having trouble finding the download button on GitHub?**
+### 🎨 Modern UI
+- Clean, responsive design
+- Dark/light theme support
+- Intuitive navigation
+- Mobile-friendly interface
+- Beautiful icons and visual feedback
 
-1. **📱 Install Pydroid 3** from Google Play Store
-2. **💾 Download ZIP** - Look for the GREEN "Code" button on GitHub → "Download ZIP"
-3. **📂 Extract files** to your phone
-4. **🎮 Play!** - Open `game_launcher.py` in Pydroid 3
+### 💾 Data Persistence
+- Local storage for data persistence
+- No external dependencies or setup required
+- Automatic data backup and recovery
 
-**📖 Detailed Guides:**
-- **[Mobile Games README](Mobile%20Games/README.md)** - Complete guide with troubleshooting
-- **[Quick Start Guide](Mobile%20Games/QUICK_START.md)** - Fast 5-minute setup
-- **[Android Setup Guide](Mobile%20Games/setup_android.md)** - Detailed Pydroid 3 instructions
+## Getting Started
+
+### Prerequisites
+- Node.js (version 16 or higher)
+- npm or yarn package manager
+
+### Installation
+
+1. **Clone or download** the project files
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Start the development server**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Open your browser** and navigate to `http://localhost:3000`
+
+### Building for Production
+
+To create a production build:
+
+```bash
+npm run build
+```
+
+The built files will be in the `dist` directory.
+
+## Usage Guide
+
+### Adding Your First Job Application
+
+1. Click "Add Job" from the sidebar or dashboard
+2. Fill in the required information:
+   - **Company Name** and **Position Title** (required)
+   - **Location**, **Salary**, and **Status**
+   - **Contact information** (optional)
+   - **Job description** (paste the full description)
+   - **Application URL** (link to the job posting)
+   - **Documents used** (which resume/cover letter you used)
+   - **Notes** (any additional information)
+
+3. Click "Save Application"
+
+### Managing Documents
+
+1. Navigate to the "Documents" section
+2. Click "Add Document" to create a new document entry
+3. Fill in:
+   - **Document Name** (e.g., "Software Engineer Resume v2")
+   - **Document Type** (Resume, Cover Letter, etc.)
+   - **Description** (optional)
+   - **File URL or Path** (where the file is stored)
+   - **Tags** (comma-separated for easy searching)
+
+### Tracking Application Progress
+
+1. View all applications in the "Job Applications" section
+2. Use filters to find specific applications
+3. Click on any application to view/edit details
+4. Update the status as your application progresses
+5. Add notes about interviews, follow-ups, or decisions
+
+## Data Structure
+
+### Job Application Fields
+- `id`: Unique identifier
+- `company`: Company name
+- `position`: Job title
+- `location`: Job location
+- `salary`: Salary range
+- `status`: Application status
+- `appliedDate`: Date applied
+- `jobDescription`: Full job description
+- `applicationUrl`: Link to application
+- `contactPerson`: Hiring manager name
+- `contactEmail`: Contact email
+- `contactPhone`: Contact phone
+- `notes`: Additional notes
+- `resumeUsed`: Resume version used
+- `coverLetterUsed`: Cover letter version used
+- `createdAt`: Creation timestamp
+- `updatedAt`: Last update timestamp
+
+### Document Fields
+- `id`: Unique identifier
+- `name`: Document name
+- `type`: Document type (resume, cover-letter, etc.)
+- `description`: Document description
+- `fileUrl`: File path or URL
+- `tags`: Array of tags
+- `createdAt`: Creation timestamp
+- `updatedAt`: Last update timestamp
+
+## Customization
+
+### Styling
+The application uses Tailwind CSS for styling. You can customize the appearance by modifying:
+- `src/index.css` for global styles
+- `tailwind.config.js` for theme configuration
+- Individual component files for specific styling
+
+### Adding Features
+The modular structure makes it easy to add new features:
+- Add new pages in `src/pages/`
+- Create new components in `src/components/`
+- Extend the context in `src/contexts/JobContext.jsx`
+
+## Browser Compatibility
+
+- Chrome (recommended)
+- Firefox
+- Safari
+- Edge
+
+## Data Backup
+
+Your data is stored locally in your browser's localStorage. To backup your data:
+
+1. Open browser developer tools (F12)
+2. Go to Application/Storage tab
+3. Find "Local Storage" → "http://localhost:3000"
+4. Copy the values for `jobApplications` and `jobDocuments`
+
+To restore data, paste the values back into the same localStorage keys.
+
+## Contributing
+
+Feel free to submit issues, feature requests, or pull requests to improve the application.
+
+## License
+
+This project is open source and available under the MIT License.
 
 ---
 
-## 📂 All Projects
-
-### 🎮 Games & Entertainment
-- **[Mobile Games](Mobile%20Games/)** - 6 classic games for Android (Pydroid 3)
-- **[2D Platformer](2D%20Platformer/)** - Desktop platform game
-- **[Trading Thing](Trading%20Thing/)** - Trading simulation
-
-### 🖥️ Desktop Applications  
-- **[Screenshot Notes](Screenshot%20Notes/)** - Capture & annotate screenshots
-- **[Linux Shut Down GUI](Linux%20Shut%20Down%20GUI/)** - System shutdown interface
-- **[Desktop Shortcut Creator](Desktop%20Shortcut%20Creator/)** - Create custom shortcuts
-- **[Desktop Widgets](Desktop%20Widgets/)** - Desktop enhancement tools
-
-### 📱 Mobile & Android
-- **[Android GUI](android%20gui/)** - Android interface components
-- **[Mobile Games](Mobile%20Games/)** - Python games for mobile devices
-
-### 🛠️ Utilities & Tools
-- **[Pyautogui Suped Up](Pyautogui%20Suped%20Up/)** - Enhanced automation tools
-- **[EEID Extraction 4K Monitor](EEID%20extraction%204k%20monitor/)** - Data extraction tool
-- **[Space Engineers Diagnosing Tool](Space%20Engineers%20diagnosing%20tool/)** - Game diagnostic utility
-- **[Pithos Songs List](Pithos%20Songs%20List/)** - Music management tool
-
-### 📊 Productivity
-- **[To Do List](To%20Do%20List/)** - Task management application
-- **[Shopping App](Shopping%20App/)** - Shopping list manager
-- **[Reader Testing](Reader%20Testing/)** - Text reading utilities
-
-### 🔧 System & Configuration
-- **[Index of Linux Mint Settings](Index%20of%20Linux%20Mint%20Settings%20menus/)** - Linux system configuration
-- **[ILK](ILK/)** - System integration tools
-
-## 🚀 Getting Started
-
-### For Mobile Games (Most Popular):
-1. **Install Pydroid 3** from Google Play Store
-2. **Download this repository** as ZIP from GitHub
-3. **Extract** the "Mobile Games" folder
-4. **Follow the [Quick Start Guide](Mobile%20Games/QUICK_START.md)**
-
-### For Desktop Applications:
-1. **Clone this repository**:
-   ```bash
-   git clone https://github.com/yourusername/your-repo-name.git
-   ```
-
-2. **Navigate to any project folder**:
-   ```bash
-   cd "Project Name"
-   ```
-
-3. **Install dependencies** (if requirements.txt exists):
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Run the application**:
-   ```bash
-   python "Run Me.py"
-   # or
-   python main.py
-   ```
-
-## 🎯 Quick Navigation
-
-| Project Type | Best For | Difficulty |
-|--------------|----------|------------|
-| **🎮 Mobile Games** | Android phones with Pydroid 3 | ⭐⭐ Easy |
-| **🖥️ Desktop Apps** | Windows/Linux desktop | ⭐⭐⭐ Medium |
-| **🛠️ Utilities** | Task automation | ⭐⭐⭐⭐ Advanced |
-| **📊 Productivity** | Daily workflow | ⭐⭐ Easy |
-
-## 🔥 Most Popular Projects
-
-1. **🥇 Mobile Games** - 6 classic arcade games for Android
-2. **🥈 Screenshot Notes** - Desktop screenshot annotation tool  
-3. **🥉 Desktop Widgets** - Enhance your desktop experience
-
-## 📞 Support & Help
-
-**For Mobile Games:**
-- **Can't find download button?** → Check [Quick Start Guide](Mobile%20Games/QUICK_START.md)
-- **Pydroid 3 issues?** → See [Android Setup Guide](Mobile%20Games/setup_android.md)
-- **Games not working?** → Review [Mobile Games README](Mobile%20Games/README.md)
-
-**For Other Projects:**
-- **Check individual project README files**
-- **Review requirements.txt for dependencies**
-- **Ensure Python 3.6+ is installed**
-
-## 🤝 Contributing
-
-Feel free to:
-- **🐛 Report bugs** by creating GitHub issues
-- **💡 Suggest improvements** 
-- **🔧 Submit pull requests**
-- **⭐ Star the repository** if you find it useful
-
-## 📜 License
-
-MIT License - Feel free to modify, distribute, and learn from these projects!
-
----
-
-### 🎉 Ready to Get Started?
-
-**For Mobile Gaming:** Check out the **[Mobile Games Collection](Mobile%20Games/)** - it's the easiest way to start!
-
-**For Desktop Development:** Browse the project list above and pick what interests you most.
-
-**Happy Coding! 🚀** 
+**Happy job hunting! 🚀** 
