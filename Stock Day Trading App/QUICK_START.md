@@ -31,9 +31,9 @@ python main.py
 
 #### Trading Setup
 1. **Go to the Trading tab**
-2. **Select a strategy** (Scalping, Swing, etc.)
+2. **Select "Daily Buy" strategy**
 3. **Choose a stock symbol** (AAPL, GOOGL, etc.)
-4. **Configure risk settings** in the Settings tab
+4. **Configure daily buy settings** in the Settings tab
 5. **Test with paper trading first!**
 
 ### 4. Safety Features
@@ -56,11 +56,11 @@ python main.py
 3. Run automation when you want to buy
 4. Monitor the execution
 
-#### Scenario 2: Strategy-Based Trading
-1. Select a trading strategy
+#### Scenario 2: Daily Buy Strategy
+1. Select "Daily Buy" strategy
 2. Enable auto trading
-3. Set risk parameters
-4. Let the app monitor and trade automatically
+3. Set daily buy parameters (1 share per day)
+4. Let the app buy daily and sell at 5% profit
 
 #### Scenario 3: Manual Trading with Charts
 1. Use the Charts tab to analyze stocks

@@ -19,11 +19,9 @@ A comprehensive automated stock day trading application that combines advanced s
 - **Portfolio Tracking**: Real-time P&L monitoring
 
 ### 🤖 Automated Strategies
-- **Scalping Bot**: Quick in-and-out trades based on momentum
-- **Swing Trading**: Medium-term position holding
-- **Mean Reversion**: Trading based on price deviations
-- **Breakout Trading**: Trading breakouts from support/resistance
-- **Custom Strategies**: User-defined trading algorithms
+- **Daily Buy Strategy**: Buy 1 share per day, sell at 5% profit
+- **Profit Take Strategy**: Monitor positions and sell when 5% profit target is reached
+- **Simple and Consistent**: No complex indicators, just buy and hold until profit target
 
 ### 🖥️ User Interface
 - **Modern GUI**: Clean, dark-themed interface using CustomTkinter
@@ -55,9 +53,9 @@ A comprehensive automated stock day trading application that combines advanced s
 
 1. **Launch the app**: Run `python main.py`
 2. **Configure trading platform**: Set up screen coordinates for your trading platform
-3. **Select strategy**: Choose from built-in strategies or create custom ones
-4. **Set parameters**: Configure risk management and trading parameters
-5. **Start automation**: Begin automated trading with real-time monitoring
+3. **Select strategy**: Choose Daily Buy or Profit Take strategy
+4. **Set parameters**: Configure daily buy settings and profit targets
+5. **Start automation**: Begin automated daily buying with 5% profit targets
 
 ## Safety Features
 

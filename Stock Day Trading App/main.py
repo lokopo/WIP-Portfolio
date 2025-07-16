@@ -96,13 +96,19 @@ class StockDayTradingApp(ctk.CTk):
         self.watchlist = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']
         self.current_symbol = 'AAPL'
         
+        # Daily buy tracking
+        self.daily_buys = {}  # Track daily purchases by date
+        self.open_positions = {}  # Track open positions with buy prices
+        
         # Trading configuration
         self.trading_config = {
             'max_position_size': 1000,
             'daily_loss_limit': 500,
-            'stop_loss_percent': 2.0,
+            'stop_loss_percent': 5.0,
             'take_profit_percent': 5.0,
-            'auto_trading': False
+            'auto_trading': False,
+            'daily_buy_enabled': True,
+            'shares_per_day': 1
         }
         
         # Create main container
@@ -306,10 +312,10 @@ class StockDayTradingApp(ctk.CTk):
         
         ctk.CTkLabel(strategy_frame, text="Trading Strategy", font=("Arial", 14, "bold")).pack(pady=5)
         
-        self.strategy_var = ctk.StringVar(value="SCALPING")
+        self.strategy_var = ctk.StringVar(value="DAILY_BUY")
         strategy_combo = ctk.CTkComboBox(
             strategy_frame,
-            values=["SCALPING", "SWING", "MEAN_REVERSION", "BREAKOUT", "CUSTOM"],
+            values=["DAILY_BUY", "PROFIT_TAKE"],
             variable=self.strategy_var,
             command=self.on_strategy_change
         )
@@ -380,6 +386,40 @@ class StockDayTradingApp(ctk.CTk):
         
         self.pnl_label = ctk.CTkLabel(pnl_frame, text="$0.00", font=("Arial", 24, "bold"))
         self.pnl_label.pack(pady=5)
+        
+        # Open positions
+        positions_frame = ctk.CTkFrame(right_panel)
+        positions_frame.pack(fill="x", padx=5, pady=5)
+        
+        ctk.CTkLabel(positions_frame, text="Open Positions", font=("Arial", 14, "bold")).pack(pady=5)
+        
+        # Create treeview for open positions
+        self.positions_tree = ttk.Treeview(positions_frame, columns=("Symbol", "Qty", "Buy Price", "Target", "Current", "P&L"), show="headings", height=3)
+        self.positions_tree.heading("Symbol", text="Symbol")
+        self.positions_tree.heading("Qty", text="Qty")
+        self.positions_tree.heading("Buy Price", text="Buy Price")
+        self.positions_tree.heading("Target", text="Target (5%)")
+        self.positions_tree.heading("Current", text="Current")
+        self.positions_tree.heading("P&L", text="P&L")
+        
+        # Configure column widths
+        self.positions_tree.column("Symbol", width=80)
+        self.positions_tree.column("Qty", width=50)
+        self.positions_tree.column("Buy Price", width=80)
+        self.positions_tree.column("Target", width=80)
+        self.positions_tree.column("Current", width=80)
+        self.positions_tree.column("P&L", width=80)
+        
+        self.positions_tree.pack(fill="x", padx=5, pady=5)
+        
+        # Daily buy status
+        daily_status_frame = ctk.CTkFrame(right_panel)
+        daily_status_frame.pack(fill="x", padx=5, pady=5)
+        
+        ctk.CTkLabel(daily_status_frame, text="Daily Buy Status", font=("Arial", 14, "bold")).pack(pady=5)
+        
+        self.daily_status_label = ctk.CTkLabel(daily_status_frame, text="Ready to buy today", font=("Arial", 12))
+        self.daily_status_label.pack(pady=5)
         
         # Trade history
         history_frame = ctk.CTkFrame(right_panel)
@@ -486,6 +526,30 @@ class StockDayTradingApp(ctk.CTk):
         self.take_profit_var = ctk.StringVar(value=str(self.trading_config['take_profit_percent']))
         take_profit_entry = ctk.CTkEntry(take_profit_frame, textvariable=self.take_profit_var)
         take_profit_entry.pack(side="right", padx=5)
+        
+        # Daily buy settings
+        daily_buy_frame = ctk.CTkFrame(config_frame)
+        daily_buy_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(daily_buy_frame, text="Daily Buy Strategy", font=("Arial", 12, "bold")).pack(pady=5)
+        
+        # Daily buy toggle
+        self.daily_buy_var = ctk.BooleanVar(value=self.trading_config.get('daily_buy_enabled', True))
+        daily_buy_switch = ctk.CTkSwitch(
+            daily_buy_frame,
+            text="Enable Daily Buy",
+            variable=self.daily_buy_var
+        )
+        daily_buy_switch.pack(padx=10, pady=5)
+        
+        # Shares per day
+        shares_frame = ctk.CTkFrame(daily_buy_frame)
+        shares_frame.pack(fill="x", padx=10, pady=5)
+        
+        ctk.CTkLabel(shares_frame, text="Shares per day:").pack(side="left", padx=5)
+        self.shares_per_day_var = ctk.StringVar(value=str(self.trading_config.get('shares_per_day', 1)))
+        shares_entry = ctk.CTkEntry(shares_frame, textvariable=self.shares_per_day_var)
+        shares_entry.pack(side="right", padx=5)
         
         # Save settings button
         save_settings_btn = ctk.CTkButton(
@@ -761,7 +825,9 @@ class StockDayTradingApp(ctk.CTk):
                 'daily_loss_limit': float(self.daily_loss_var.get()),
                 'stop_loss_percent': float(self.stop_loss_var.get()),
                 'take_profit_percent': float(self.take_profit_var.get()),
-                'auto_trading': self.auto_trading_var.get()
+                'auto_trading': self.auto_trading_var.get(),
+                'daily_buy_enabled': self.daily_buy_var.get(),
+                'shares_per_day': int(self.shares_per_day_var.get())
             })
             
             with open(TRADING_CONFIG_FILE, 'w') as f:
@@ -841,21 +907,47 @@ class StockDayTradingApp(ctk.CTk):
     def execute_strategy(self, current_price):
         """Execute trading strategy"""
         strategy = self.current_strategy
+        current_date = datetime.now().date()
         
-        if strategy == "SCALPING":
-            # Simple scalping strategy
-            if len(self.trades) == 0:
-                # No position, look for entry
-                self.place_trade("BUY", 100, current_price)
-        elif strategy == "SWING":
-            # Swing trading strategy
-            pass
-        elif strategy == "MEAN_REVERSION":
-            # Mean reversion strategy
-            pass
-        elif strategy == "BREAKOUT":
-            # Breakout strategy
-            pass
+        if strategy == "DAILY_BUY":
+            # Check if we already bought today
+            if current_date not in self.daily_buys:
+                self.daily_buys[current_date] = []
+            
+            # Check if we already bought this symbol today
+            if self.current_symbol not in [buy['symbol'] for buy in self.daily_buys[current_date]]:
+                # Buy 1 share
+                self.place_trade("BUY", 1, current_price)
+                # Track the purchase
+                self.daily_buys[current_date].append({
+                    'symbol': self.current_symbol,
+                    'quantity': 1,
+                    'price': current_price,
+                    'timestamp': datetime.now()
+                })
+                # Track open position
+                self.open_positions[self.current_symbol] = {
+                    'buy_price': current_price,
+                    'quantity': 1,
+                    'buy_date': current_date
+                }
+                self.status_bar.configure(text=f"Daily buy executed: 1 share of {self.current_symbol} @ ${current_price:.2f}")
+        
+        elif strategy == "PROFIT_TAKE":
+            # Check if we have an open position for this symbol
+            if self.current_symbol in self.open_positions:
+                buy_price = self.open_positions[self.current_symbol]['buy_price']
+                target_price = buy_price * 1.05  # 5% profit target
+                
+                if current_price >= target_price:
+                    # Sell the position
+                    quantity = self.open_positions[self.current_symbol]['quantity']
+                    self.place_trade("SELL", quantity, current_price)
+                    # Remove from open positions
+                    del self.open_positions[self.current_symbol]
+                    self.status_bar.configure(text=f"Profit target reached: Sold {quantity} share(s) of {self.current_symbol} @ ${current_price:.2f}")
+                else:
+                    self.status_bar.configure(text=f"Waiting for 5% profit: {current_price:.2f} < {target_price:.2f}")
             
     def manual_buy(self):
         """Manual buy order"""
@@ -906,6 +998,47 @@ class StockDayTradingApp(ctk.CTk):
                 f"${trade.price:.2f}",
                 f"${trade.pnl:.2f}"
             ))
+    
+    def update_open_positions(self):
+        """Update open positions display"""
+        # Clear existing items
+        for item in self.positions_tree.get_children():
+            self.positions_tree.delete(item)
+            
+        # Get current prices for open positions
+        for symbol, position in self.open_positions.items():
+            try:
+                ticker = yf.Ticker(symbol)
+                current_price = ticker.info.get('regularMarketPrice', position['buy_price'])
+                
+                buy_price = position['buy_price']
+                quantity = position['quantity']
+                target_price = buy_price * 1.05
+                current_pnl = (current_price - buy_price) * quantity
+                
+                self.positions_tree.insert("", "end", values=(
+                    symbol,
+                    quantity,
+                    f"${buy_price:.2f}",
+                    f"${target_price:.2f}",
+                    f"${current_price:.2f}",
+                    f"${current_pnl:.2f}"
+                ))
+            except Exception as e:
+                print(f"Error updating position for {symbol}: {e}")
+    
+    def update_daily_status(self):
+        """Update daily buy status"""
+        current_date = datetime.now().date()
+        
+        if current_date in self.daily_buys:
+            bought_symbols = [buy['symbol'] for buy in self.daily_buys[current_date]]
+            if self.current_symbol in bought_symbols:
+                self.daily_status_label.configure(text=f"Already bought {self.current_symbol} today")
+            else:
+                self.daily_status_label.configure(text=f"Ready to buy {self.current_symbol} today")
+        else:
+            self.daily_status_label.configure(text=f"Ready to buy {self.current_symbol} today")
             
     def create_chart(self):
         """Create price chart"""
@@ -950,11 +1083,17 @@ class StockDayTradingApp(ctk.CTk):
                 total_pnl = sum(trade.pnl for trade in self.trades)
                 self.pnl_label.configure(text=f"${total_pnl:.2f}")
                 
-                time.sleep(1)
+                # Update open positions
+                self.update_open_positions()
+                
+                # Update daily status
+                self.update_daily_status()
+                
+                time.sleep(5)  # Update every 5 seconds
                 
             except Exception as e:
                 print(f"Error in market data thread: {e}")
-                time.sleep(5)
+                time.sleep(10)
 
 def main():
     """Main function"""

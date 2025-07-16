@@ -76,93 +76,90 @@ class TradingStrategies:
     def __init__(self):
         self.indicators = TechnicalIndicators()
         
-    def scalping_strategy(self, symbol: str, timeframe: str = "1m") -> Signal:
+    def daily_buy_strategy(self, symbol: str, timeframe: str = "1d") -> Signal:
         """
-        Scalping strategy based on short-term momentum and volatility
+        Simple daily buy strategy: Buy 1 share per day, sell at 5% profit
         """
         try:
             # Get recent data
             ticker = yf.Ticker(symbol)
-            data = ticker.history(period="1h", interval=timeframe)
+            data = ticker.history(period="5d", interval=timeframe)
             
-            if len(data) < 50:
-                return Signal(symbol, "HOLD", 0.0, data['Close'].iloc[-1], datetime.now(), "SCALPING", "Insufficient data")
-            
-            # Calculate indicators
-            rsi = self.indicators.calculate_rsi(data)
-            macd, macd_signal, macd_diff = self.indicators.calculate_macd(data)
-            bb_upper, bb_lower, bb_middle = self.indicators.calculate_bollinger_bands(data)
-            atr = self.indicators.calculate_atr(data)
+            if len(data) < 2:
+                return Signal(symbol, "HOLD", 0.0, data['Close'].iloc[-1], datetime.now(), "DAILY_BUY", "Insufficient data")
             
             current_price = data['Close'].iloc[-1]
-            current_rsi = rsi.iloc[-1]
-            current_macd = macd.iloc[-1]
-            current_macd_signal = macd_signal.iloc[-1]
-            current_atr = atr.iloc[-1]
+            current_date = datetime.now().date()
             
-            # Scalping logic
-            signal_strength = 0.0
-            action = "HOLD"
-            reason = ""
+            # Check if we already bought today
+            # This would need to be tracked in the main app
+            # For now, we'll assume we can buy if it's a new day
             
-            # RSI conditions
-            if current_rsi < 30:
-                signal_strength += 0.3
-                reason += "Oversold RSI; "
-            elif current_rsi > 70:
-                signal_strength -= 0.3
-                reason += "Overbought RSI; "
+            # Simple logic: Buy 1 share per day
+            action = "BUY"
+            signal_strength = 1.0
+            reason = f"Daily buy strategy - purchasing 1 share of {symbol}"
             
-            # MACD conditions
-            if current_macd > current_macd_signal and macd_diff.iloc[-1] > 0:
-                signal_strength += 0.3
-                reason += "MACD bullish crossover; "
-            elif current_macd < current_macd_signal and macd_diff.iloc[-1] < 0:
-                signal_strength -= 0.3
-                reason += "MACD bearish crossover; "
-            
-            # Bollinger Bands conditions
-            if current_price < bb_lower.iloc[-1]:
-                signal_strength += 0.2
-                reason += "Price below lower BB; "
-            elif current_price > bb_upper.iloc[-1]:
-                signal_strength -= 0.2
-                reason += "Price above upper BB; "
-            
-            # Volume confirmation
-            if data['Volume'].iloc[-1] > data['Volume'].rolling(10).mean().iloc[-1]:
-                signal_strength += 0.2
-                reason += "High volume; "
-            
-            # Determine action
-            if signal_strength >= 0.5:
-                action = "BUY"
-                stop_loss = current_price - (current_atr * 2)
-                take_profit = current_price + (current_atr * 3)
-            elif signal_strength <= -0.5:
-                action = "SELL"
-                stop_loss = current_price + (current_atr * 2)
-                take_profit = current_price - (current_atr * 3)
-            else:
-                action = "HOLD"
-                stop_loss = None
-                take_profit = None
+            # Set take profit at 5% above current price
+            take_profit = current_price * 1.05
+            stop_loss = current_price * 0.95  # 5% stop loss as safety
             
             return Signal(
                 symbol=symbol,
                 action=action,
-                strength=abs(signal_strength),
+                strength=signal_strength,
                 price=current_price,
                 timestamp=datetime.now(),
-                strategy="SCALPING",
-                reason=reason.strip(),
+                strategy="DAILY_BUY",
+                reason=reason,
                 stop_loss=stop_loss,
                 take_profit=take_profit
             )
             
         except Exception as e:
-            logger.error(f"Error in scalping strategy: {e}")
-            return Signal(symbol, "HOLD", 0.0, 0.0, datetime.now(), "SCALPING", f"Error: {e}")
+            logger.error(f"Error in daily buy strategy: {e}")
+            return Signal(symbol, "HOLD", 0.0, 0.0, datetime.now(), "DAILY_BUY", f"Error: {e}")
+    
+    def profit_take_strategy(self, symbol: str, buy_price: float, timeframe: str = "1m") -> Signal:
+        """
+        Sell strategy: Sell when price reaches 5% above buy price
+        """
+        try:
+            # Get current price
+            ticker = yf.Ticker(symbol)
+            data = ticker.history(period="1d", interval=timeframe)
+            
+            if len(data) < 1:
+                return Signal(symbol, "HOLD", 0.0, 0.0, datetime.now(), "PROFIT_TAKE", "Insufficient data")
+            
+            current_price = data['Close'].iloc[-1]
+            target_price = buy_price * 1.05  # 5% profit target
+            
+            # Check if we've reached 5% profit
+            if current_price >= target_price:
+                action = "SELL"
+                signal_strength = 1.0
+                reason = f"Target reached: {current_price:.2f} >= {target_price:.2f} (5% profit)"
+            else:
+                action = "HOLD"
+                signal_strength = 0.0
+                reason = f"Waiting for target: {current_price:.2f} < {target_price:.2f}"
+            
+            return Signal(
+                symbol=symbol,
+                action=action,
+                strength=signal_strength,
+                price=current_price,
+                timestamp=datetime.now(),
+                strategy="PROFIT_TAKE",
+                reason=reason,
+                stop_loss=None,
+                take_profit=target_price
+            )
+            
+        except Exception as e:
+            logger.error(f"Error in profit take strategy: {e}")
+            return Signal(symbol, "HOLD", 0.0, 0.0, datetime.now(), "PROFIT_TAKE", f"Error: {e}")
     
     def swing_trading_strategy(self, symbol: str, timeframe: str = "1h") -> Signal:
         """
