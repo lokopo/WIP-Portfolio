@@ -1,0 +1,27 @@
+# Core automation and GUI
+pyautogui==0.9.54
+customtkinter==5.2.2
+pillow==10.2.0
+mouse==0.7.1
+keyboard==0.13.5
+python-xlib==0.33
+
+# Trading and data analysis
+requests==2.31.0
+pandas==2.1.4
+numpy==1.26.2
+matplotlib==3.8.2
+yfinance==0.2.28
+ta==0.10.2
+scikit-learn==1.3.2
+
+# Additional utilities
+schedule==1.2.0
+python-dotenv==1.0.0
+websocket-client==1.6.4
+plotly==5.17.0
+kaleido==0.2.1
+
+# Optional: For advanced features
+# alpaca-trade-api==3.0.2  # For Alpaca trading
+# robin-stocks==3.0.9      # For Robinhood trading
