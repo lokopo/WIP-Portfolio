@@ -7,7 +7,7 @@ import numpy as np
 from datetime import datetime, timedelta
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QPushButton, QLabel, QComboBox, 
-                            QTableWidget, QTableWidgetItem, QMessageBox)
+                            QTableWidget, QTableWidgetItem, QMessageBox, QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox)
 from PySide6.QtCore import Qt, QTimer
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -16,6 +16,8 @@ import os
 import yfinance as yf
 from typing import Optional
 from click_points import click_index, scripts_dir_exists, script_exists, set_scripts_dir
+import csv
+import json
 
 class TradingApp(QMainWindow):
     def __init__(self):
@@ -33,11 +35,17 @@ class TradingApp(QMainWindow):
         # Alpha Vantage API key - you'll need to get your own free key from alphavantage.co
         self.api_key = "YOUR_API_KEY"  # Replace with your actual API key
         
+        # Persistence
+        self.config_path = os.path.join(os.path.dirname(__file__), "trading_config.json")
+        self.trades_csv = os.path.join(os.path.dirname(__file__), "trades.csv")
+        
         # Auto-trading config
         self.auto_trading_enabled = True
         self.buy_interval_minutes = 15
         self.sell_profit_multiplier = 1.05  # 5% target
         self.open_lot_prices = []  # Track per-share buy prices
+        self.market_hours_only = True
+        self.last_buy_dt: Optional[datetime] = None
         
         # Click points configuration
         scripts_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Pyautogui Suped Up", "scripts"))
@@ -46,6 +54,9 @@ class TradingApp(QMainWindow):
             "buy": {"script": "buy", "index": 0, "enabled": True},
             "sell": {"script": "sell", "index": 0, "enabled": True}
         }
+        
+        # Load persisted config if present
+        self.load_config()
         
         self.init_ui()
         self.update_data()
@@ -59,7 +70,64 @@ class TradingApp(QMainWindow):
         self.buy_timer = QTimer()
         self.buy_timer.timeout.connect(self.auto_buy_share)
         self.buy_timer.start(self.buy_interval_minutes * 60 * 1000)
-        
+
+    def _write_csv_trade(self, trade_type: str, price: float, shares: int) -> None:
+        header_needed = not os.path.isfile(self.trades_csv)
+        try:
+            with open(self.trades_csv, "a", newline="") as f:
+                writer = csv.writer(f)
+                if header_needed:
+                    writer.writerow(["timestamp", "symbol", "type", "price", "shares"]) 
+                writer.writerow([datetime.now().isoformat(), self.symbol, trade_type, f"{price:.2f}", shares])
+        except Exception:
+            pass
+
+    def save_config(self) -> None:
+        data = {
+            "symbol": self.symbol,
+            "auto_trading_enabled": self.auto_trading_enabled,
+            "buy_interval_minutes": self.buy_interval_minutes,
+            "sell_profit_multiplier": self.sell_profit_multiplier,
+            "market_hours_only": self.market_hours_only,
+            "cash": self.cash
+        }
+        try:
+            with open(self.config_path, "w") as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
+
+    def load_config(self) -> None:
+        try:
+            if os.path.isfile(self.config_path):
+                with open(self.config_path, "r") as f:
+                    data = json.load(f)
+                self.symbol = data.get("symbol", self.symbol)
+                self.auto_trading_enabled = bool(data.get("auto_trading_enabled", self.auto_trading_enabled))
+                self.buy_interval_minutes = int(data.get("buy_interval_minutes", self.buy_interval_minutes))
+                self.sell_profit_multiplier = float(data.get("sell_profit_multiplier", self.sell_profit_multiplier))
+                self.market_hours_only = bool(data.get("market_hours_only", self.market_hours_only))
+                self.cash = float(data.get("cash", self.cash))
+        except Exception:
+            pass
+
+    def is_market_open(self, now: Optional[datetime] = None) -> bool:
+        # Simple US market hours gate: 9:30-16:00 ET, Mon-Fri; assumes local time is ET
+        # Adjust as needed for your timezone/broker
+        now = now or datetime.now()
+        if now.weekday() >= 5:
+            return False
+        minutes = now.hour * 60 + now.minute
+        return 9 * 60 + 30 <= minutes <= 16 * 60
+
+    def next_buy_in_text(self) -> str:
+        if not self.last_buy_dt:
+            return "ready"
+        delta = datetime.now() - self.last_buy_dt
+        remain = max(0, self.buy_interval_minutes * 60 - int(delta.total_seconds()))
+        m, s = divmod(remain, 60)
+        return f"{m:02d}:{s:02d}"
+    
     def init_ui(self):
         # Create central widget and layout
         central_widget = QWidget()
@@ -78,6 +146,51 @@ class TradingApp(QMainWindow):
         controls_layout.addWidget(self.cash_label)
         controls_layout.addWidget(self.shares_label)
         
+        # Symbol controls
+        symbol_layout = QHBoxLayout()
+        self.symbol_input = QLineEdit(self.symbol)
+        self.symbol_input.setPlaceholderText("Symbol (e.g., AMD)")
+        apply_symbol_btn = QPushButton("Set Symbol")
+        apply_symbol_btn.clicked.connect(self._apply_symbol)
+        symbol_layout.addWidget(QLabel("Symbol:"))
+        symbol_layout.addWidget(self.symbol_input)
+        symbol_layout.addWidget(apply_symbol_btn)
+        layout.addLayout(symbol_layout)
+        
+        # Strategy settings
+        settings_layout = QHBoxLayout()
+        self.auto_checkbox = QCheckBox("Auto Trading")
+        self.auto_checkbox.setChecked(self.auto_trading_enabled)
+        self.auto_checkbox.stateChanged.connect(self._toggle_auto)
+        
+        self.market_hours_checkbox = QCheckBox("Market Hours Only")
+        self.market_hours_checkbox.setChecked(self.market_hours_only)
+        self.market_hours_checkbox.stateChanged.connect(self._toggle_market_hours)
+        
+        self.interval_spin = QSpinBox()
+        self.interval_spin.setRange(1, 240)
+        self.interval_spin.setValue(self.buy_interval_minutes)
+        self.interval_spin.setSuffix(" min buy")
+        self.interval_spin.valueChanged.connect(self._change_interval)
+        
+        self.take_profit_spin = QDoubleSpinBox()
+        self.take_profit_spin.setRange(1.0, 100.0)
+        self.take_profit_spin.setValue((self.sell_profit_multiplier - 1.0) * 100.0)
+        self.take_profit_spin.setSuffix(" % TP")
+        self.take_profit_spin.valueChanged.connect(self._change_tp)
+        
+        save_btn = QPushButton("Save Settings")
+        save_btn.clicked.connect(self.save_config)
+        
+        settings_layout.addWidget(self.auto_checkbox)
+        settings_layout.addWidget(self.market_hours_checkbox)
+        settings_layout.addWidget(QLabel("Interval:"))
+        settings_layout.addWidget(self.interval_spin)
+        settings_layout.addWidget(QLabel("Profit Target:"))
+        settings_layout.addWidget(self.take_profit_spin)
+        settings_layout.addWidget(save_btn)
+        layout.addLayout(settings_layout)
+        
         # Trading buttons
         self.buy_button = QPushButton("Buy")
         self.sell_button = QPushButton("Sell")
@@ -87,7 +200,27 @@ class TradingApp(QMainWindow):
         controls_layout.addWidget(self.buy_button)
         controls_layout.addWidget(self.sell_button)
         
+        # Click-point quick tests
+        test_buy_btn = QPushButton("Test Buy Click")
+        test_buy_btn.clicked.connect(lambda: self._maybe_click_action("buy"))
+        test_sell_btn = QPushButton("Test Sell Click")
+        test_sell_btn.clicked.connect(lambda: self._maybe_click_action("sell"))
+        controls_layout.addWidget(test_buy_btn)
+        controls_layout.addWidget(test_sell_btn)
+        
         layout.addLayout(controls_layout)
+        
+        # Status row
+        status_layout = QHBoxLayout()
+        self.next_buy_label = QLabel("Next buy: ready")
+        self.market_status_label = QLabel("Market: unknown")
+        self.avg_cost_label = QLabel("Avg cost: --")
+        self.unreal_pnl_label = QLabel("Unrealized P&L: --")
+        status_layout.addWidget(self.next_buy_label)
+        status_layout.addWidget(self.market_status_label)
+        status_layout.addWidget(self.avg_cost_label)
+        status_layout.addWidget(self.unreal_pnl_label)
+        layout.addLayout(status_layout)
         
         # Price and indicators section
         info_layout = QHBoxLayout()
@@ -112,7 +245,34 @@ class TradingApp(QMainWindow):
         self.trade_table.setColumnCount(4)
         self.trade_table.setHorizontalHeaderLabels(["Time", "Type", "Price", "Shares"])
         layout.addWidget(self.trade_table)
-        
+
+    def _apply_symbol(self):
+        val = self.symbol_input.text().strip().upper()
+        if not val:
+            return
+        self.symbol = val
+        self.save_config()
+        self.update_data()
+
+    def _toggle_auto(self):
+        self.auto_trading_enabled = self.auto_checkbox.isChecked()
+        self.save_config()
+
+    def _toggle_market_hours(self):
+        self.market_hours_only = self.market_hours_checkbox.isChecked()
+        self.save_config()
+
+    def _change_interval(self):
+        self.buy_interval_minutes = int(self.interval_spin.value())
+        # restart timer with new interval
+        self.buy_timer.stop()
+        self.buy_timer.start(self.buy_interval_minutes * 60 * 1000)
+        self.save_config()
+
+    def _change_tp(self):
+        self.sell_profit_multiplier = 1.0 + float(self.take_profit_spin.value()) / 100.0
+        self.save_config()
+    
     def fetch_stock_data(self):
         """Fetch stock data using Alpha Vantage API"""
         try:
@@ -176,6 +336,11 @@ class TradingApp(QMainWindow):
             # Fetch latest data
             self.df = self.fetch_stock_data()
             
+            # Update market status and next buy label regardless of df
+            is_open = self.is_market_open() if self.market_hours_only else True
+            self.market_status_label.setText(f"Market: {'open' if is_open else 'closed'}")
+            self.next_buy_label.setText(f"Next buy: {self.next_buy_in_text()}")
+            
             if self.df is not None and len(self.df) > 0:
                 # Update price
                 current_price = self.df['Close'].iloc[-1]
@@ -197,6 +362,16 @@ class TradingApp(QMainWindow):
                 # Update chart
                 self.update_chart()
                 
+                # Update avg cost and unrealized P&L
+                if self.shares > 0 and self.open_lot_prices:
+                    avg_cost = sum(self.open_lot_prices) / len(self.open_lot_prices)
+                    unreal = (current_price - avg_cost) * self.shares
+                    self.avg_cost_label.setText(f"Avg cost: ${avg_cost:.2f}")
+                    self.unreal_pnl_label.setText(f"Unrealized P&L: ${unreal:.2f}")
+                else:
+                    self.avg_cost_label.setText("Avg cost: --")
+                    self.unreal_pnl_label.setText("Unrealized P&L: --")
+                
                 # Check auto-sell condition each update
                 self.auto_sell_check()
                 
@@ -205,6 +380,8 @@ class TradingApp(QMainWindow):
     
     def auto_buy_share(self):
         if not self.auto_trading_enabled:
+            return
+        if self.market_hours_only and not self.is_market_open():
             return
         current_price = self.get_current_price()
         if current_price is None:
@@ -249,6 +426,8 @@ class TradingApp(QMainWindow):
             # Update UI
             self.update_position_info()
             self.add_trade_to_table("BUY", current_price, shares_to_buy)
+            self._write_csv_trade("BUY", current_price, shares_to_buy)
+            self.last_buy_dt = datetime.now()
             
             # Execute external click point for buy
             self._maybe_click_action("buy")
@@ -281,6 +460,7 @@ class TradingApp(QMainWindow):
         # Update UI
         self.update_position_info()
         self.add_trade_to_table("SELL", current_price, shares_to_sell)
+        self._write_csv_trade("SELL", current_price, shares_to_sell)
         
         # Execute external click point for sell
         self._maybe_click_action("sell")
